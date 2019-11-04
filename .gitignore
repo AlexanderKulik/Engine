@@ -1,3 +1,6 @@
+prj/Build
+prj/Generated
+
 # Prerequisites
 *.d
 

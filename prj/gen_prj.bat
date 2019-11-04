@@ -1,1 +1,1 @@
-../tools/bin/premake5.exe premake5.lua
+CALL "%~dp0../tools/bin/premake/premake5.exe" vs2015
