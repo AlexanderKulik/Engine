@@ -39,7 +39,7 @@ workspace "Engine"
 		}
 	
 	project "EngineApp"
-		kind "ConsoleApp"
+		kind "WindowedApp"
 		files "../src/EngineApp/**"
 		includedirs "../src/EngineLib"
 		links "EngineLib"
