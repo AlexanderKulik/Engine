@@ -13,7 +13,8 @@ workspace "Engine"
 	
 	filter { }
 	
-	targetdir ("Build/Bin/%{prj.name}/%{cfg.longname}")
+	debugdir ("../build")
+	targetdir ("../build/bin/%{cfg.longname}")
 	objdir ("Build/Obj/%{prj.name}/%{cfg.longname}")
 	
 	
@@ -37,12 +38,31 @@ workspace "Engine"
 		links {
 			"jsoncpp"
 		}
+		
+	project "DirectXTK"
+		kind "StaticLib"
+		files {
+			"../libs/DirectXTK/Inc/**",
+			"../libs/DirectXTK/Src/**",
+		}
+		excludes {
+			"../libs/DirectXTK/Inc/XboxDDSTextureLoader.h",
+			"../libs/DirectXTK/Src/XboxDDSTextureLoader.cpp",
+			"../libs/DirectXTK/Src/Shaders/**",
+		}
+		includedirs "../libs/DirectXTK/Inc"
 	
 	project "EngineApp"
 		kind "WindowedApp"
 		files "../src/EngineApp/**"
-		includedirs "../src/EngineLib"
-		links "EngineLib"
+		includedirs {
+			"../src/EngineLib",
+			"../libs/DirectXTK/Inc"
+		}
+		links {
+			"EngineLib",
+			"DirectXTK",
+		}
 	
 	
 	group "Tests"

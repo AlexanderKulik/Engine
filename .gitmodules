@@ -7,3 +7,6 @@
 [submodule "libs/gtest"]
 	path = libs/gtest
 	url = https://github.com/google/googletest.git
+[submodule "libs/DirectXTK"]
+	path = libs/DirectXTK
+	url = https://github.com/microsoft/DirectXTK.git

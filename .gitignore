@@ -1,5 +1,6 @@
 prj/Build
 prj/Generated
+build/bin
 
 # Prerequisites
 *.d
