@@ -1,9 +1,15 @@
-cbuffer MatrixBuffer
+cbuffer MatrixBuffer : register(b0)
 {
     float4x4 world;
 	float4x4 view;
     float4x4 worldViewProj;
     float3 lightDir;
+};
+
+cbuffer FogData : register(b1)
+{
+	float4 fogParams;
+	float4 fogColor;
 };
 
 struct VertexInputType
@@ -16,10 +22,10 @@ struct VertexInputType
 struct PixelInputType
 {
     float4 position : SV_POSITION;
-	float4 positionCS : POSITION;
     float4 color : COLOR;
     float3 normal : NORMAL;
 	float2 uv : TEXCOORD;
+	float fogFactor : FOGFACTOR;
 };
 
 PixelInputType VShader(VertexInputType input)
@@ -29,11 +35,14 @@ PixelInputType VShader(VertexInputType input)
 	float4 normalWS = mul(world, float4(input.normal, 0.0));
 	float diffuse = saturate(dot(normalWS.xyz, lightDir));
 	
+	float4 positionVS = mul(view, input.position);
+	float fogFactor = saturate( (positionVS.z - fogParams.x)/(fogParams.y - fogParams.x) );
+
     output.position = mul(worldViewProj, input.position);
     output.color = float4(0.5, 0.5, 0.5, 1.0) + float4(diffuse * 0.5, diffuse * 0.5, diffuse * 0.5, 1.0);
 	output.normal = normalWS.xyz;
 	output.uv = input.uv;
-	output.positionCS = output.position;
+	output.fogFactor = fogFactor;
 	
     return output;
 }
@@ -44,19 +53,13 @@ SamplerState SampleType;
 
 float4 PShader(PixelInputType input) : SV_TARGET
 {
+	float3 output;
+
 	float4 textureColor = shaderTexture.Sample(SampleType, input.uv);
 
-	return textureColor * input.color;
-	
-	//float n = 0.5;
-	//float f = 500.0;
-	//float z = input.positionCS.z / input.positionCS.w;
-	//
-	//
-	//float LZ = n * (z + 1.0) / (f + n - z * (f - n));
-	//
-	//return float4(LZ, LZ, LZ, 0.0);
-    //return color;
-	//float3 normalColor = input.normal * 0.5 + float3(0.5, 0.5, 0.5);
-	//return float4(normalColor.x, normalColor.y, normalColor.z, 1.0);
+	output.rgb = textureColor * input.color;
+
+	output.rgb = lerp(output.rgb, fogColor.rgb, input.fogFactor * fogColor.a);
+
+	return float4(output, 1);
 }

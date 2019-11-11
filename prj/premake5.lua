@@ -5,6 +5,7 @@ workspace "Engine"
 	architecture "x86_64"
 	configurations { "Debug", "Release" }
 	
+	
 	filter { "configurations:Debug" }
 		symbols "On"
 	
@@ -54,12 +55,15 @@ workspace "Engine"
 	
 	project "EngineApp"
 		kind "WindowedApp"
-		files "../src/EngineApp/**"
+		flags { "FatalCompileWarnings" }
+		files "../src/EngineApp/source/**"
 		includedirs {
-			"../src/EngineLib",
+			"../src/EngineLib/source",
 			"../libs/DirectXTK/Inc"
 		}
 		links {
+			"d3d11",
+			"d3dcompiler",
 			"EngineLib",
 			"DirectXTK",
 		}

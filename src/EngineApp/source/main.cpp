@@ -1,8 +1,7 @@
-// include the basic windows header files and the Direct3D header files
+// inclu//de the basic windows header files and the Direct3D header files
 #include <windows.h>
 #include <windowsx.h>
 #include <d3d11.h>
-#include <d3dcompiler.h>
 #include <DirectXMath.h>
 #include <memory>
 #include <cassert>
@@ -18,24 +17,18 @@
 #include <wrl.h>
 #include <math.h>
 
-#include <WICTextureLoader.h>
 #include <Keyboard.h>
 #include <Mouse.h>
 #include <SimpleMath.h>
 
-#include "OBJ_Loader.h"
-
-// include the Direct3D Library file
-#pragma comment (lib, "d3d11.lib")
-#pragma comment (lib, "d3dcompiler.lib")
+#include "Camera.h"
+#include "Shader.h"
+#include "RenderTarget.h"
+#include "Texture.h"
+#include "Model.h"
 
 const unsigned WIDTH = 800;
 const unsigned HEIGHT = 600;
-
-class Camera;
-class Model;
-class Shader;
-class Texture;
 
 // global declarations
 IDXGISwapChain *swapchain;             // the pointer to the swap chain interface
@@ -45,329 +38,16 @@ ID3D11RenderTargetView *backbuffer;    // the pointer to our back buffer
 ID3D11Texture2D* m_depthStencilBuffer;
 ID3D11DepthStencilView *pDepthStencilView;
 ID3D11DepthStencilState* m_depthStencilState;
-//ID3D11InputLayout *pLayout;            // the pointer to the input layout
-//ID3D11VertexShader *pVS;               // the pointer to the vertex shader
-//ID3D11PixelShader *pPS;                // the pointer to the pixel shader
-//ID3D11Buffer *pVBuffer;                // the pointer to the vertex buffer
-//ID3D11Buffer *pIBuffer;                // the pointer to the vertex buffer
 ID3D11Buffer* pConstantBuffer;
-ID3D11SamplerState* pSamplerState;
-
-
-//// a struct to define a single vertex
-//struct VERTEX
-//{
-//	FLOAT X, Y, Z;
-//	FLOAT Color[4];
-//};
-
+ID3D11Buffer* pConsantBuffer2;
 
 std::unique_ptr<DirectX::Keyboard> g_keyboard;
 std::unique_ptr<DirectX::Mouse> g_mouse;
 
-std::unique_ptr<Camera> g_camera;
+std::unique_ptr<Camera> g_camera, g_lightCamera;
 std::unique_ptr<Model> g_model;
 std::unique_ptr<Shader> g_shader;
-std::unique_ptr<Texture> g_texture;
-
-template <typename ComObj>
-class ComPtr
-{
-public:
-	ComPtr() = default;
-	ComPtr(const ComPtr&) = delete;
-
-	~ComPtr()
-	{
-		Release();
-	}
-
-	ComPtr& operator = (const ComPtr&) = delete;
-
-	operator bool() const
-	{
-		return m_comObj != nullptr;
-	}
-
-	ComObj* operator -> ()
-	{
-		return m_comObj;
-	}
-
-	ComObj*& GetRaw() 
-	{ 
-		return m_comObj; 
-	}
-
-	void Release()
-	{
-		if (m_comObj)
-		{
-			m_comObj->Release();
-		}
-	}
-	
-private:
-	ComObj* m_comObj{ nullptr };
-};
-
-class Camera
-{
-public:
-	Camera(float fovy, float ar, float nearZ, float farZ)
-		: m_fovy(fovy)
-		, m_aspectRatio(ar)
-		, m_nearZ(nearZ)
-		, m_farZ(farZ)
-	{}
-
-	void SetPosition(DirectX::XMVECTOR newPos)
-	{
-		m_position = newPos;
-	}
-
-	void SetRotation(DirectX::XMVECTOR newRot)
-	{
-		m_rotation = newRot;
-	}
-
-	DirectX::XMVECTOR GetPosition() const { return m_position; }
-	DirectX::XMVECTOR GetRotation() const { return m_rotation; }
-
-	DirectX::XMMATRIX GetViewTransform() const
-	{
-		const DirectX::XMVECTOR zeroVector = DirectX::XMVectorZero();
-		const DirectX::XMVECTOR unitVector = DirectX::XMVectorSplatOne();
-
-		const DirectX::XMMATRIX cameraWorld = DirectX::XMMatrixAffineTransformation(unitVector, zeroVector, m_rotation, m_position);
-
-		DirectX::XMVECTOR det = DirectX::XMMatrixDeterminant(cameraWorld);
-		return DirectX::XMMatrixInverse(&det, cameraWorld);
-	}
-
-	DirectX::XMMATRIX GetProjectionTransform() const
-	{
-		return DirectX::XMMatrixPerspectiveFovLH(m_fovy, m_aspectRatio, m_nearZ, m_farZ);
-	}
-
-	DirectX::XMMATRIX GetViewProjectionTransform() const
-	{
-		return DirectX::XMMatrixMultiply(GetViewTransform(), GetProjectionTransform());
-	}
-
-private:
-	DirectX::XMVECTOR	m_position;
-	DirectX::XMVECTOR	m_rotation;
-	float				m_fovy;
-	float				m_aspectRatio;
-	float				m_nearZ;
-	float				m_farZ;
-};
-
-class Texture
-{
-public:
-	Texture(ID3D11Device* dev, const std::wstring& textureName)
-	{
-		auto&& result = DirectX::CreateWICTextureFromFile(dev, textureName.c_str(), nullptr, m_texture.GetAddressOf());
-		assert(SUCCEEDED(result));
-
-		D3D11_SAMPLER_DESC samplerDesc;
-		ZeroMemory(&samplerDesc, sizeof(D3D11_SAMPLER_DESC));
-		
-		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-		samplerDesc.MipLODBias = 0.0f;
-		samplerDesc.MaxAnisotropy = 1;
-		samplerDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
-		samplerDesc.BorderColor[0] = 0;
-		samplerDesc.BorderColor[1] = 0;
-		samplerDesc.BorderColor[2] = 0;
-		samplerDesc.BorderColor[3] = 0;
-		samplerDesc.MinLOD = 0;
-		samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-
-		result = dev->CreateSamplerState(&samplerDesc, m_samplerState.GetAddressOf());
-		assert(SUCCEEDED(result));
-	}
-
-	void Bind(ID3D11DeviceContext* devcon)
-	{
-		devcon->PSSetSamplers(0, 1, m_samplerState.GetAddressOf());
-		devcon->PSSetShaderResources(0, 1, m_texture.GetAddressOf());
-	}
-
-private:
-	Microsoft::WRL::ComPtr<ID3D11SamplerState> m_samplerState;
-	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_texture;
-};
-
-class Shader
-{
-public:
-	Shader(ID3D11Device* dev, const std::wstring& shaderName)
-	{
-		ComPtr<ID3DBlob> vsBlob, psBlob;
-
-		// vertex shader 
-		ComPtr<ID3DBlob> errors;
-		auto&& result = D3DCompileFromFile(shaderName.c_str(), 0, 0, "VShader", "vs_5_0", 0, 0, &vsBlob.GetRaw(), &errors.GetRaw());
-		assert(SUCCEEDED(result));
-
-		if (FAILED(result) && errors)
-		{
-			const char* errorMsg = reinterpret_cast<const char*>(errors->GetBufferPointer());
-			std::cout << "Failed to compile vertex shader '" << shaderName.c_str() << "'!. Error: " << errorMsg << std::endl;
-		}
-
-		// encapsulate both shaders into shader objects
-		result = dev->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), NULL, &m_vertexShader.GetRaw());
-		assert(SUCCEEDED(result));
-
-
-		// pixel shader
-		errors.Release();
-		result = D3DCompileFromFile(shaderName.c_str(), 0, 0, "PShader", "ps_5_0", 0, 0, &psBlob.GetRaw(), &errors.GetRaw());
-		assert(SUCCEEDED(result));
-
-		if (FAILED(result) && errors)
-		{
-			const char* errorMsg = reinterpret_cast<const char*>(errors->GetBufferPointer());
-			std::cout << "Failed to compile pixel shader '" << shaderName.c_str() << "'!. Error: " << errorMsg << std::endl;
-		}
-
-		// encapsulate both shaders into shader objects
-		result = dev->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), NULL, &m_pixelShader.GetRaw());
-		assert(SUCCEEDED(result));
-
-		// create the input layout object
-		D3D11_INPUT_ELEMENT_DESC inputElementDesc[] =
-		{
-			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, sizeof(objl::Vector3), D3D11_INPUT_PER_VERTEX_DATA, 0 },
-			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(objl::Vector3) * 2, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		};
-
-		result = dev->CreateInputLayout(inputElementDesc, 3, vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &m_inputLayout.GetRaw());
-		assert(SUCCEEDED(result));
-	}
-
-	void Bind(ID3D11DeviceContext* devcon)
-	{
-		devcon->IASetInputLayout(m_inputLayout.GetRaw());
-
-		devcon->VSSetShader(m_vertexShader.GetRaw(), 0, 0);
-		devcon->PSSetShader(m_pixelShader.GetRaw(), 0, 0);
-	}
-
-private:
-	ComPtr<ID3D11VertexShader>	m_vertexShader;
-	ComPtr<ID3D11PixelShader>	m_pixelShader;
-	ComPtr<ID3D11InputLayout>	m_inputLayout;
-};
-
-class Model
-{
-	struct Mesh
-	{
-		std::string name;
-
-		ComPtr<ID3D11Buffer> vertexBuffer;
-		ComPtr<ID3D11Buffer> indexBuffer;
-
-		unsigned int vertexCount;
-		unsigned int indexCount;
-	};
-
-public:
-	Model(ID3D11Device* dev, const std::string& path)
-	{
-		objl::Loader loader;
-
-		bool loadout = loader.LoadFile(path);
-		if (loadout)
-		{
-			for (auto&& meshData : loader.LoadedMeshes)
-			{
-				auto&& mesh = std::make_unique<Mesh>();
-				mesh->name = meshData.MeshName;
-
-				// create the vertex buffer
-				{
-					D3D11_BUFFER_DESC vertexBufferDesc;
-					ZeroMemory(&vertexBufferDesc, sizeof(D3D11_BUFFER_DESC));
-
-					vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-					vertexBufferDesc.ByteWidth = sizeof(objl::Vertex) * meshData.Vertices.size();
-					vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-					vertexBufferDesc.CPUAccessFlags = 0;
-
-					D3D11_SUBRESOURCE_DATA vertexData;
-					vertexData.pSysMem = meshData.Vertices.data();
-					vertexData.SysMemPitch = 0;
-					vertexData.SysMemSlicePitch = 0;
-
-					auto&& result = dev->CreateBuffer(&vertexBufferDesc, &vertexData, &mesh->vertexBuffer.GetRaw());
-					assert(SUCCEEDED(result));
-
-					mesh->vertexCount = meshData.Vertices.size();
-				}
-						
-				
-				// create index buffer
-				{
-					D3D11_BUFFER_DESC indexBufferDesc;
-					ZeroMemory(&indexBufferDesc, sizeof(D3D11_BUFFER_DESC));
-
-					indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-					indexBufferDesc.ByteWidth = meshData.Indices.size() * sizeof(unsigned int);
-					indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-					indexBufferDesc.CPUAccessFlags = 0;
-
-					D3D11_SUBRESOURCE_DATA indexData;
-					indexData.pSysMem = meshData.Indices.data();
-					indexData.SysMemPitch = 0;
-					indexData.SysMemSlicePitch = 0;
-
-					auto&& result = dev->CreateBuffer(&indexBufferDesc, &indexData, &mesh->indexBuffer.GetRaw());
-					assert(SUCCEEDED(result));
-
-					mesh->indexCount = meshData.Indices.size();
-				}
-
-				
-
-				m_meshes.push_back(std::move(mesh));
-			}
-		}
-	}
-
-	void Render(ID3D11DeviceContext* context)
-	{
-		for (auto&& mesh : m_meshes)
-		{
-			// select which vertex buffer to display
-			UINT stride = sizeof(objl::Vertex);
-			UINT offset = 0;
-			context->IASetVertexBuffers(0, 1, &mesh->vertexBuffer.GetRaw(), &stride, &offset);
-			context->IASetIndexBuffer(mesh->indexBuffer.GetRaw(), DXGI_FORMAT_R32_UINT, 0);
-
-			// select which primtive type we are using
-			context->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-			// draw the vertex buffer to the back buffer
-			context->DrawIndexed(mesh->indexCount, 0, 0);
-		}
-	}
-
-private:
-	DirectX::XMVECTOR					m_position;
-	DirectX::XMVECTOR					m_rotation;
-	DirectX::XMVECTOR					m_scale;
-	std::vector<std::unique_ptr<Mesh>>	m_meshes;
-};
+std::unique_ptr<RenderTarget> g_shadowMap;
 
 struct ConstantBufferType
 {
@@ -377,13 +57,18 @@ struct ConstantBufferType
 	DirectX::XMFLOAT4 lightDir;
 };
 
+struct FogDataBuffer
+{
+	DirectX::XMFLOAT4 params;		// start and end in xy, zw not used
+	DirectX::XMFLOAT4 color;		// color and influence in alpha
+};
+
 // function prototypes
 void InitD3D(HWND hWnd);    // sets up and initializes Direct3D
 void UpdateFrame(void);     // renders a single frame
 void RenderFrame(void);     // renders a single frame
 void CleanD3D(void);        // closes Direct3D and releases memory
 void InitGraphics(void);    // creates the shape to render
-void InitPipeline(void);    // loads and prepares the shaders
 
 // the WindowProc function prototype
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -396,21 +81,21 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	int nCmdShow)
 {
 
-	{
-		AllocConsole();
-
-		HANDLE handle_out = GetStdHandle(STD_OUTPUT_HANDLE);
-		int hCrt = _open_osfhandle((long)handle_out, _O_TEXT);
-		FILE* hf_out = _fdopen(hCrt, "w");
-		setvbuf(hf_out, NULL, _IONBF, 1);
-		*stdout = *hf_out;
-
-		HANDLE handle_in = GetStdHandle(STD_INPUT_HANDLE);
-		hCrt = _open_osfhandle((long)handle_in, _O_TEXT);
-		FILE* hf_in = _fdopen(hCrt, "r");
-		setvbuf(hf_in, NULL, _IONBF, 128);
-		*stdin = *hf_in;
-	}
+	//{
+	//	AllocConsole();
+	//
+	//	HANDLE handle_out = GetStdHandle(STD_OUTPUT_HANDLE);
+	//	int hCrt = _open_osfhandle((long)handle_out, _O_TEXT);
+	//	FILE* hf_out = _fdopen(hCrt, "w");
+	//	setvbuf(hf_out, NULL, _IONBF, 1);
+	//	*stdout = *hf_out;
+	//
+	//	HANDLE handle_in = GetStdHandle(STD_INPUT_HANDLE);
+	//	hCrt = _open_osfhandle((long)handle_in, _O_TEXT);
+	//	FILE* hf_in = _fdopen(hCrt, "r");
+	//	setvbuf(hf_in, NULL, _IONBF, 128);
+	//	*stdin = *hf_in;
+	//}
 
 	HWND hWnd;
 	WNDCLASSEX wc;
@@ -481,7 +166,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 
 	CoUninitialize();
 
-	return msg.wParam;
+	return static_cast<int>(msg.wParam);
 }
 
 
@@ -554,7 +239,7 @@ void InitD3D(HWND hWnd)
 	D3D11CreateDeviceAndSwapChain(NULL,
 		D3D_DRIVER_TYPE_HARDWARE,
 		NULL,
-		NULL,
+		D3D11_CREATE_DEVICE_DEBUG,
 		NULL,
 		NULL,
 		D3D11_SDK_VERSION,
@@ -642,9 +327,6 @@ void InitD3D(HWND hWnd)
 	result = dev->CreateDepthStencilView(m_depthStencilBuffer, &depthStencilViewDesc, &pDepthStencilView);
 	assert(SUCCEEDED(result));
 
-	// set the render target as the back buffer
-	devcon->OMSetRenderTargets(1, &backbuffer, pDepthStencilView);
-
 	// Set the viewport
 	D3D11_VIEWPORT viewport;
 	ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
@@ -658,74 +340,71 @@ void InitD3D(HWND hWnd)
 
 	devcon->RSSetViewports(1, &viewport);
 
-	InitPipeline();
 	InitGraphics();
-
 
 	const float fovy = DirectX::XMConvertToRadians(45.0f);
 	const float ar = (float)WIDTH / (float)HEIGHT;
 
-	g_camera = std::make_unique<Camera>(fovy, ar, 0.5f, 500.0f);
+	//g_camera = std::make_unique<Camera>(Camera::Orthographic{ 20.0f }, ar, 0.5f, 500.0f);
+	g_camera = std::make_unique<Camera>(Camera::Perspective{ fovy }, ar, 0.5f, 500.0f);
 	g_camera->SetPosition(DirectX::XMVectorSet(0.0f, 0.0f, -5.0f, 1.0f));
 	g_camera->SetRotation(DirectX::XMQuaternionIdentity());
 
-	g_texture = std::make_unique<Texture>(dev, L"textures/tv's back wall.jpg");
+	g_lightCamera = std::make_unique<Camera>(Camera::Orthographic{ 200.0f }, 1.0f, 0.5f, 500.0f);
+	g_lightCamera->SetPosition(DirectX::XMVectorSet(84.0f, 69.0f, 105.0f, 1.0f));
+	g_lightCamera->SetRotation({ 0.115494534f, -0.882180750f, 0.286937863f, 0.355084032f });
+	//g_lightCamera->SetRotation(DirectX::XMQuaternionRotationMatrix(DirectX::XMMatrixLookAtLH(g_lightCamera->GetPosition(), DirectX::XMVectorZero(), DirectX::XMVectorSet(0, 1, 0, 0))));
+
 	g_shader = std::make_unique<Shader>(dev, L"shaders/basic.hlsl");
-	g_model = std::make_unique<Model>(dev, "models/247_House 15_obj.obj");
-	//g_model = std::make_unique<Model>("models/luxury house interior.obj", *g_shader);
+	g_model = std::make_unique<Model>(dev, "models/Snow covered CottageOBJ.obj");
+
+	g_shadowMap = std::make_unique<RenderTarget>(dev, 1024, 1024, "RGBA8888", "D24S8");
 }
 
 
 // this is the function that creates the shape to render
 void InitGraphics()
 {
-	// Setup the description of the dynamic matrix constant buffer that is in the vertex shader.
-	D3D11_BUFFER_DESC matrixBufferDesc;
-	matrixBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
-	matrixBufferDesc.ByteWidth = sizeof(ConstantBufferType);
-	matrixBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	matrixBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	matrixBufferDesc.MiscFlags = 0;
-	matrixBufferDesc.StructureByteStride = 0;
+	{
+		// Setup the description of the dynamic matrix constant buffer that is in the vertex shader.
+		D3D11_BUFFER_DESC matrixBufferDesc;
+		matrixBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+		matrixBufferDesc.ByteWidth = sizeof(ConstantBufferType);
+		matrixBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+		matrixBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+		matrixBufferDesc.MiscFlags = 0;
+		matrixBufferDesc.StructureByteStride = 0;
 
-	// Create the constant buffer pointer so we can access the vertex shader constant buffer from within this class.
-	auto result = dev->CreateBuffer(&matrixBufferDesc, NULL, &pConstantBuffer);
-	assert(SUCCEEDED(result));
+		// Create the constant buffer pointer so we can access the vertex shader constant buffer from within this class.
+		auto result = dev->CreateBuffer(&matrixBufferDesc, NULL, &pConstantBuffer);
+		assert(SUCCEEDED(result));
+	}
+
+	{
+		// Setup the description of the dynamic matrix constant buffer that is in the vertex shader.
+		D3D11_BUFFER_DESC bufferDesc;
+		bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		bufferDesc.ByteWidth = sizeof(FogDataBuffer);
+		bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+		bufferDesc.CPUAccessFlags = 0;
+		bufferDesc.MiscFlags = 0;
+		bufferDesc.StructureByteStride = 0;
+
+		FogDataBuffer fogData;
+		fogData.color = { 1.0f, 1.0f, 1.0f, 0.2f };
+		fogData.params = { 10.0f, 200.0f, 0.0f, 0.0f };
+
+		D3D11_SUBRESOURCE_DATA subresourceData;
+		subresourceData.pSysMem = &fogData;
+		subresourceData.SysMemPitch = 0;
+		subresourceData.SysMemSlicePitch = 0;
+
+		// Create the constant buffer pointer so we can access the vertex shader constant buffer from within this class.
+		auto result = dev->CreateBuffer(&bufferDesc, &subresourceData, &pConsantBuffer2);
+		assert(SUCCEEDED(result));
+	}
 }
 
-
-// this function loads and prepares the shaders
-void InitPipeline()
-{
-	//// load and compile the two shaders
-	//ID3D10Blob *VS, *PS;
-	//ID3D10Blob *VSerrors, *PSerrors;
-	//D3DCompileFromFile(L"shaders.shader", 0, 0, "VShader", "vs_4_0", 0, 0, &VS, &VSerrors);
-	//D3DCompileFromFile(L"shaders.shader", 0, 0, "PShader", "ps_4_0", 0, 0, &PS, &PSerrors);
-	//
-	//if (!VS && VSerrors)
-	//{
-	//	const char* errorMsg = reinterpret_cast<const char*>(VSerrors->GetBufferPointer());
-	//	assert(false && errorMsg);
-	//}
-	//
-	//// encapsulate both shaders into shader objects
-	//dev->CreateVertexShader(VS->GetBufferPointer(), VS->GetBufferSize(), NULL, &pVS);
-	//dev->CreatePixelShader(PS->GetBufferPointer(), PS->GetBufferSize(), NULL, &pPS);
-	//
-	//// set the shader objects
-	//devcon->VSSetShader(pVS, 0, 0);
-	//devcon->PSSetShader(pPS, 0, 0);
-	//
-	//// create the input layout object
-	//D3D11_INPUT_ELEMENT_DESC ied[] =
-	//{
-	//	{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	//	{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	//};
-	//
-	//dev->CreateInputLayout(ied, 2, VS->GetBufferPointer(), VS->GetBufferSize(), &pLayout);
-}
 
 void UpdateFrame()
 {
@@ -736,12 +415,25 @@ void UpdateFrame()
 	}
 
 	const float ROTATION_GAIN = 0.01f;
-	const float MOVEMENT_GAIN = 1.0f;
+	const float FOV_GAIN = DirectX::XMConvertToRadians(1.0f);
+	const float ORTHO_VIEW_GAIN = 1.0f;
+	static float MOVEMENT_GAIN = 1.0f;
 
 	// update camera rotation
 	{		
 		
 		auto mouse = g_mouse->GetState();
+
+		if (auto scrollVal = mouse.scrollWheelValue)
+		{
+			auto clamp = [](auto val, auto lowerBound, auto upperBound)
+			{
+				return min(max(val, lowerBound), upperBound);
+			};
+
+			MOVEMENT_GAIN = clamp(MOVEMENT_GAIN + static_cast<float>(scrollVal) * 0.001f, 0.01f, 10.0f);
+			g_mouse->ResetScrollWheelValue();
+		}
 		
 		if (mouse.positionMode == DirectX::Mouse::MODE_RELATIVE)
 		{
@@ -789,6 +481,8 @@ void UpdateFrame()
 	{
 		float deltaMoveRight = 0.0f;
 		float deltaMoveFront = 0.0f;
+		float deltaMoveUp = 0.0f;
+		float deltaFrustum = 0.0f;
 
 		if (kb.Up || kb.W)
 		{
@@ -810,13 +504,36 @@ void UpdateFrame()
 			deltaMoveRight -= MOVEMENT_GAIN;
 		}
 
+		if (kb.X)
+		{
+			deltaMoveUp += MOVEMENT_GAIN;
+		}
+
+		if (kb.Z)
+		{
+			deltaMoveUp -= MOVEMENT_GAIN;
+		}
+
+		if (kb.E)
+		{
+			deltaFrustum += g_camera->IsPerspective() ? FOV_GAIN : ORTHO_VIEW_GAIN;
+		}
+
+		if (kb.Q)
+		{
+			deltaFrustum -= g_camera->IsPerspective() ? FOV_GAIN : ORTHO_VIEW_GAIN;
+		}
+
 		auto&& cameraPos = g_camera->GetPosition();
 		auto&& cameraFront = DirectX::XMVector3Rotate(DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), g_camera->GetRotation());
 		auto&& cameraRight = DirectX::XMVector3Rotate(DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), g_camera->GetRotation());
+		auto&& cameraUp = DirectX::XMVector3Rotate(DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), g_camera->GetRotation());
 
-		auto&& offset = DirectX::XMVectorAdd(DirectX::XMVectorScale(cameraFront, deltaMoveFront), DirectX::XMVectorScale(cameraRight, deltaMoveRight));
+		auto&& offset = DirectX::XMVectorAdd(DirectX::XMVectorScale(cameraFront, deltaMoveFront), DirectX::XMVectorScale(cameraRight, deltaMoveRight)); 
+		offset = DirectX::XMVectorAdd(offset, DirectX::XMVectorScale(cameraUp, deltaMoveUp));
 
 		g_camera->SetPosition(DirectX::XMVectorAdd(cameraPos, offset));
+		g_camera->SetProjectionData(g_camera->GetProjectionData() + deltaFrustum);
 	}
 
 	//auto mouse = g_mouse->GetState();
@@ -825,8 +542,45 @@ void UpdateFrame()
 // this is the function used to render a single frame
 void RenderFrame(void)
 {
+	// render to shadow map
+	{
+		g_shadowMap->Bind(devcon);
+
+		// Lock the constant buffer so it can be written to.
+		{
+			D3D11_MAPPED_SUBRESOURCE ms;
+			auto result = devcon->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
+			assert(SUCCEEDED(result));
+
+			// Get a pointer to the data in the constant buffer.
+			auto dataPtr = (ConstantBufferType*)ms.pData;
+
+			auto world = DirectX::XMMatrixIdentity();
+			auto viewProj = g_lightCamera->GetViewProjectionTransform();
+			auto worldViewProj = world * viewProj;
+
+			// Copy the matrices into the constant buffer.
+			DirectX::XMStoreFloat4x4(&dataPtr->world, world);
+			DirectX::XMStoreFloat4x4(&dataPtr->view, g_lightCamera->GetViewTransform());
+			DirectX::XMStoreFloat4x4(&dataPtr->worldViewProjection, worldViewProj);
+			DirectX::XMStoreFloat4(&dataPtr->lightDir, DirectX::XMVector3Rotate(-DirectX::SimpleMath::Vector3::UnitZ, g_lightCamera->GetRotation()));
+
+			// Unlock the constant buffer.
+			devcon->Unmap(pConstantBuffer, 0);
+
+			// Finanly set the constant buffer in the vertex shader with the updated values.
+			devcon->VSSetConstantBuffers(0, 1, &pConstantBuffer);
+		}
+
+		g_shader->Bind(devcon);
+		g_model->Render(devcon);
+	}
+
 	// clear the back buffer to a deep blue
 	const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+
+	// set the render target as the back buffer
+	devcon->OMSetRenderTargets(1, &backbuffer, pDepthStencilView);
 
 	devcon->ClearRenderTargetView(backbuffer, clearColor);
 	devcon->ClearDepthStencilView(pDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
@@ -844,33 +598,11 @@ void RenderFrame(void)
 		auto viewProj = g_camera->GetViewProjectionTransform();
 		auto worldViewProj = world * viewProj;
 
-		//std::array<DirectX::XMVECTOR, 6> testPoints =
-		//{ {
-		//	DirectX::XMVectorSet(5.0f, 5.0f, -4.5f, 1.0f),
-		//	DirectX::XMVectorSet(5.0f, 5.0f, -5.0f, 1.0f),
-		//	DirectX::XMVectorSet(5.0f, 5.0f, 0.0f, 1.0f),
-		//	DirectX::XMVectorSet(5.0f, 5.0f, -5.0f + 0.5f + 500.0f, 1.0f),
-		//	DirectX::XMVectorSet(5.0f, 5.0f, -2.0f, 1.0f),
-		//	DirectX::XMVectorSet(5.0f, 5.0f, -3.0f, 1.0f),
-		//} };
-		//
-		//for (size_t i = 0; i < testPoints.size(); i++)
-		//{
-		//	auto testPoint = testPoints[i];
-		//	auto clipSpace = DirectX::XMVector4Transform(testPoint, g_camera->GetViewProjectionTransform());
-		//	auto w = DirectX::XMVectorGetW(clipSpace);
-		//	auto ndcSpace = DirectX::XMVectorScale(clipSpace, 1.0f / w);
-		//
-		//	int a = 5655;
-		//}
-
-		DirectX::XMVECTOR lightDir = DirectX::XMVector3Normalize(DirectX::XMVectorSet(0.5f, 0.5f, 0.5f, 0.0f));
-
 		// Copy the matrices into the constant buffer.
 		DirectX::XMStoreFloat4x4(&dataPtr->world, world);
 		DirectX::XMStoreFloat4x4(&dataPtr->view, g_camera->GetViewTransform());
 		DirectX::XMStoreFloat4x4(&dataPtr->worldViewProjection, worldViewProj);
-		DirectX::XMStoreFloat4(&dataPtr->lightDir, lightDir);
+		DirectX::XMStoreFloat4(&dataPtr->lightDir, DirectX::XMVector3Rotate(-DirectX::SimpleMath::Vector3::UnitZ, g_lightCamera->GetRotation()));
 
 		// Unlock the constant buffer.
 		devcon->Unmap(pConstantBuffer, 0);
@@ -878,7 +610,12 @@ void RenderFrame(void)
 		// Finanly set the constant buffer in the vertex shader with the updated values.
 		devcon->VSSetConstantBuffers(0, 1, &pConstantBuffer);
 	}
-	g_texture->Bind(devcon);
+
+	{
+		devcon->PSSetConstantBuffers(1, 1, &pConsantBuffer2);
+		devcon->VSSetConstantBuffers(1, 1, &pConsantBuffer2);
+	}
+
 	g_shader->Bind(devcon);
 	g_model->Render(devcon);
 
@@ -890,20 +627,19 @@ void RenderFrame(void)
 // this is the function that cleans up Direct3D and COM
 void CleanD3D(void)
 {
-	g_texture.reset();
-	g_camera.reset();
-	g_model.reset();
-	g_shader.reset();
+	Texture::ClearUnreferenced();
+
+	g_lightCamera = nullptr;
+	g_camera = nullptr;
+	g_model = nullptr;
+	g_shader = nullptr;
+
+	g_shadowMap = nullptr;
 
 	g_keyboard = nullptr;
 	g_mouse = nullptr;
 
 	// close and release all existing COM objects
-	//pLayout->Release();
-	//pVS->Release();
-	//pPS->Release();
-	//pIBuffer->Release();
-	//pVBuffer->Release();
 	swapchain->Release();
 	backbuffer->Release();
 	m_depthStencilBuffer->Release();
