@@ -1,3 +1,5 @@
+#include "pch.h"
+
 #include "Camera.h"
 
 DirectX::XMMATRIX Camera::GetViewTransform() const
@@ -26,4 +28,9 @@ DirectX::XMMATRIX Camera::GetProjectionTransform() const
 DirectX::XMMATRIX Camera::GetViewProjectionTransform() const
 {
 	return DirectX::XMMatrixMultiply(GetViewTransform(), GetProjectionTransform());
+}
+
+void Camera::UpdateFrustum()
+{
+	m_frustum.UpdatePlanes( GetViewProjectionTransform() );
 }

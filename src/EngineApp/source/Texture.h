@@ -1,10 +1,5 @@
 #pragma once
 
-#include <wrl.h>
-#include <memory>
-#include <string>
-#include <unordered_map>
-
 struct ID3D11Device;
 struct ID3D11DeviceContext;
 struct ID3D11SamplerState;

@@ -14,7 +14,7 @@ cbuffer FogData : register(b1)
 
 struct VertexInputType
 {
-	float4 position : POSITION; 
+	float3 position : POSITION; 
 	float3 normal : NORMAL;
 	float2 uv : TEXCOORD;
 };
@@ -35,10 +35,10 @@ PixelInputType VShader(VertexInputType input)
 	float4 normalWS = mul(world, float4(input.normal, 0.0));
 	float diffuse = saturate(dot(normalWS.xyz, lightDir));
 	
-	float4 positionVS = mul(view, input.position);
+	float4 positionVS = mul(view, float4(input.position, 1));
 	float fogFactor = saturate( (positionVS.z - fogParams.x)/(fogParams.y - fogParams.x) );
 
-    output.position = mul(worldViewProj, input.position);
+    output.position = mul(worldViewProj, float4(input.position, 1));
     output.color = float4(0.5, 0.5, 0.5, 1.0) + float4(diffuse * 0.5, diffuse * 0.5, diffuse * 0.5, 1.0);
 	output.normal = normalWS.xyz;
 	output.uv = input.uv;

@@ -1,17 +1,9 @@
 #pragma once
 
-#include <memory>
-#include <vector>
-#include <string>
-#include <wrl.h>
-#include <DirectXMath.h>
+#include "Math/AABB.h"
 
-struct ID3D11Device;
-struct ID3D11DeviceContext;
-struct ID3D11Buffer;
-struct ID3D11RenderTargetView;
-struct ID3D11ShaderResourceView;
 class Texture;
+class Shader;
 
 class Model
 {
@@ -26,12 +18,19 @@ class Model
 		unsigned int							indexCount;
 
 		std::shared_ptr<Texture>				diffuse;
+		Shader*									material{ nullptr };
+
+		AABB									aabb;
 	};
 
 public:
 	Model(ID3D11Device* dev, const std::string& path);
 
 	void								Render(ID3D11DeviceContext* context);
+	void								SetMaterial(size_t idx, Shader* shader);
+	void								SetAllMaterials(Shader* shader);
+
+	size_t								GetMeshCount() const;
 
 private:
 	DirectX::XMVECTOR					m_position;
@@ -39,3 +38,8 @@ private:
 	DirectX::XMVECTOR					m_scale;
 	std::vector<std::unique_ptr<Mesh>>	m_meshes;
 };
+
+inline size_t Model::GetMeshCount() const
+{
+	return m_meshes.size();
+}

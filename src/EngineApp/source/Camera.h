@@ -1,6 +1,6 @@
 #pragma once
 
-#include <DirectXMath.h>
+#include "Frustum.h"
 
 class Camera
 {
@@ -35,16 +35,20 @@ public:
 	void						SetRotation(const DirectX::XMVECTOR& newRot);
 	void						SetProjectionData(float projectionData);
 
+	void						UpdateFrustum();
+
 	DirectX::XMMATRIX			GetViewTransform() const;
 	DirectX::XMMATRIX			GetProjectionTransform() const;
 	DirectX::XMMATRIX			GetViewProjectionTransform() const;
 
+	const Frustum&				GetFrustum() const;
 	const DirectX::XMVECTOR&	GetPosition() const;
 	const DirectX::XMVECTOR&	GetRotation() const;
 	float						GetProjectionData() const;
 	bool						IsPerspective() const;
 
 private:
+	Frustum						m_frustum;
 	DirectX::XMVECTOR			m_position;
 	DirectX::XMVECTOR			m_rotation;
 	float						m_aspectRatio;
@@ -67,6 +71,11 @@ inline void Camera::SetRotation(const DirectX::XMVECTOR& newRot)
 inline void Camera::SetProjectionData(float projectionData)
 {
 	m_projectionData = projectionData;
+}
+
+inline const Frustum & Camera::GetFrustum() const
+{
+	return m_frustum;
 }
 
 inline const DirectX::XMVECTOR& Camera::GetPosition() const

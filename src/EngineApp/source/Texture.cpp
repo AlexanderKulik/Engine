@@ -1,4 +1,5 @@
-#include <d3d11.h>
+#include "pch.h"
+
 #include <WICTextureLoader.h>
 #include <assert.h>
 

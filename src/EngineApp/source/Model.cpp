@@ -1,4 +1,4 @@
-#include <d3d11.h>
+#include "pch.h"
 
 #include "Model.h"
 #include "Texture.h"
@@ -98,5 +98,19 @@ void Model::Render(ID3D11DeviceContext* context)
 
 		// draw the vertex buffer to the back buffer
 		context->DrawIndexed(mesh->indexCount, 0, 0);
+	}
+}
+
+void Model::SetMaterial(size_t idx, Shader* shader)
+{
+	assert(idx < m_meshes.size());
+	m_meshes[idx]->material = shader;
+}
+
+void Model::SetAllMaterials(Shader* shader)
+{
+	for (size_t idx = 0, sz = m_meshes.size(); idx < sz; idx++)
+	{
+		SetMaterial(idx, shader);
 	}
 }

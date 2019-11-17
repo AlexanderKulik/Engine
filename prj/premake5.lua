@@ -52,6 +52,8 @@ workspace "Engine"
 			"../libs/DirectXTK/Src/Shaders/**",
 		}
 		includedirs "../libs/DirectXTK/Inc"
+		pchheader "pch.h"
+		pchsource "../libs/DirectXTK/Src/pch.cpp"
 	
 	project "EngineApp"
 		kind "WindowedApp"
@@ -67,6 +69,8 @@ workspace "Engine"
 			"EngineLib",
 			"DirectXTK",
 		}
+		pchheader "pch.h"
+		pchsource "../src/EngineApp/source/pch.cpp"
 	
 	
 	group "Tests"

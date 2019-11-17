@@ -1,3 +1,5 @@
+#include "pch.h"
+
 // inclu//de the basic windows header files and the Direct3D header files
 #include <windows.h>
 #include <windowsx.h>
@@ -26,6 +28,9 @@
 #include "RenderTarget.h"
 #include "Texture.h"
 #include "Model.h"
+
+#undef min
+#undef max
 
 const unsigned WIDTH = 800;
 const unsigned HEIGHT = 600;
@@ -358,7 +363,7 @@ void InitD3D(HWND hWnd)
 	g_shader = std::make_unique<Shader>(dev, L"shaders/basic.hlsl");
 	g_model = std::make_unique<Model>(dev, "models/Snow covered CottageOBJ.obj");
 
-	g_shadowMap = std::make_unique<RenderTarget>(dev, 1024, 1024, "RGBA8888", "D24S8");
+	g_shadowMap = std::make_unique<RenderTarget>(dev, 1024, 1024, std::string(), "D24S8");
 }
 
 
@@ -428,7 +433,7 @@ void UpdateFrame()
 		{
 			auto clamp = [](auto val, auto lowerBound, auto upperBound)
 			{
-				return min(max(val, lowerBound), upperBound);
+				return std::min(std::max(val, lowerBound), upperBound);
 			};
 
 			MOVEMENT_GAIN = clamp(MOVEMENT_GAIN + static_cast<float>(scrollVal) * 0.001f, 0.01f, 10.0f);
@@ -459,8 +464,8 @@ void UpdateFrame()
 			// limit pitch to straight up or straight down
 			// with a little fudge-factor to avoid gimbal lock
 			float limit = DirectX::XM_PI / 2.0f - 0.01f;
-			cameraPitchAngle = max(-limit, cameraPitchAngle);
-			cameraPitchAngle = min(+limit, cameraPitchAngle);
+			cameraPitchAngle = std::max(-limit, cameraPitchAngle);
+			cameraPitchAngle = std::min(+limit, cameraPitchAngle);
 		
 			// keep longitude in sane range by wrapping
 			if (cameraYawAngle > DirectX::XM_PI)
@@ -535,6 +540,34 @@ void UpdateFrame()
 		g_camera->SetPosition(DirectX::XMVectorAdd(cameraPos, offset));
 		g_camera->SetProjectionData(g_camera->GetProjectionData() + deltaFrustum);
 	}
+
+	g_camera->UpdateFrustum();
+
+	auto&& frustum = g_camera->GetFrustum();
+
+	std::array<std::tuple<DirectX::SimpleMath::Vector3, float, CullResult>, 11> testSpheres =
+	{
+		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, 0.0f, 0.0f}, 1.0f, CullResult::INSIDE),			//
+		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, 0.0f, -100.0f }, 1.0f, CullResult::OUTSIDE),	// behind camera
+		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, 0.0f, 600.0f }, 1.0f, CullResult::OUTSIDE),		// too far
+		std::make_tuple(DirectX::SimpleMath::Vector3{ 100.0f, 0.0f, 0.0f }, 1.0f, CullResult::OUTSIDE),		// right side
+		std::make_tuple(DirectX::SimpleMath::Vector3{ -100.0f, 0.0f, 0.0f }, 1.0f, CullResult::OUTSIDE),	// left side
+		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, 100.0f, 0.0f }, 1.0f, CullResult::OUTSIDE),		// top side
+		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, -100.0f, 0.0f }, 1.0f, CullResult::OUTSIDE),	// right side
+		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, 5.0f, 5.0f }, 1.0f, CullResult::INTERSECTS),	// intersection with top
+		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, -7.0f, 5.0f }, 4.0f, CullResult::INTERSECTS),	// intersection with btm
+		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, 0.0f, 500.0f }, 10.0f, CullResult::INTERSECTS),	// intersection with far
+		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, 0.0f, -6.0f }, 10.0f, CullResult::INTERSECTS),	// intersection with btm
+	};
+
+	for (auto i = 0; i < testSpheres.size(); i++)
+	{
+		auto&& testSphere = testSpheres[i];
+		auto result = frustum.CullSphere(std::get<0>(testSphere), std::get<1>(testSphere));
+		assert(result == std::get<2>(testSphere));
+	}
+
+	int i = 5;
 
 	//auto mouse = g_mouse->GetState();
 }
