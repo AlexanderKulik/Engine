@@ -10,12 +10,12 @@ void AABB::AddPoint(const DirectX::SimpleMath::Vector3& point)
 
 void AABB::GetPoints(DirectX::SimpleMath::Vector3 points[]) const
 {
-	points[0] = DirectX::SimpleMath::Vector3();
-	points[1] = DirectX::SimpleMath::Vector3();
-	points[2] = DirectX::SimpleMath::Vector3();
-	points[3] = DirectX::SimpleMath::Vector3();
-	points[4] = DirectX::SimpleMath::Vector3();
-	points[5] = DirectX::SimpleMath::Vector3();
-	points[6] = DirectX::SimpleMath::Vector3();
-	points[7] = DirectX::SimpleMath::Vector3();
+	points[0] = m_minPoint;
+	points[1] = DirectX::SimpleMath::Vector3(m_minPoint.x, m_minPoint.y, m_maxPoint.z);
+	points[2] = DirectX::SimpleMath::Vector3(m_maxPoint.x, m_minPoint.y, m_maxPoint.z);
+	points[3] = DirectX::SimpleMath::Vector3(m_maxPoint.x, m_minPoint.y, m_minPoint.z);
+	points[4] = DirectX::SimpleMath::Vector3(m_minPoint.x, m_maxPoint.y, m_minPoint.z);
+	points[5] = DirectX::SimpleMath::Vector3(m_minPoint.x, m_maxPoint.y, m_maxPoint.z);
+	points[6] = m_maxPoint;
+	points[7] = DirectX::SimpleMath::Vector3(m_maxPoint.x, m_maxPoint.y, m_minPoint.z);
 }

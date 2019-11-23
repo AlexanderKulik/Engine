@@ -5,13 +5,9 @@
 #include <windowsx.h>
 #include <d3d11.h>
 #include <DirectXMath.h>
-#include <memory>
 #include <cassert>
 #include <fstream>
 #include <sstream>
-#include <vector>
-#include <array>
-#include <string>
 #include <iostream>
 #include <stdio.h>
 #include <io.h>
@@ -21,7 +17,7 @@
 
 #include <Keyboard.h>
 #include <Mouse.h>
-#include <SimpleMath.h>
+#include <PrimitiveBatch.h>
 
 #include "Camera.h"
 #include "Shader.h"
@@ -31,6 +27,9 @@
 
 #undef min
 #undef max
+
+using DirectX::SimpleMath::Vector3;
+using DirectX::SimpleMath::Vector4;
 
 const unsigned WIDTH = 800;
 const unsigned HEIGHT = 600;
@@ -51,8 +50,16 @@ std::unique_ptr<DirectX::Mouse> g_mouse;
 
 std::unique_ptr<Camera> g_camera, g_lightCamera;
 std::unique_ptr<Model> g_model;
-std::unique_ptr<Shader> g_shader;
+std::unique_ptr<Shader> g_shader, g_debugPrimitiveShader;
 std::unique_ptr<RenderTarget> g_shadowMap;
+
+struct Vertex3D
+{
+	DirectX::SimpleMath::Vector3 pos;
+	DirectX::SimpleMath::Vector4 color;
+};
+
+std::unique_ptr<DirectX::PrimitiveBatch<Vertex3D>> g_debugDrawer;
 
 struct ConstantBufferType
 {
@@ -361,9 +368,13 @@ void InitD3D(HWND hWnd)
 	//g_lightCamera->SetRotation(DirectX::XMQuaternionRotationMatrix(DirectX::XMMatrixLookAtLH(g_lightCamera->GetPosition(), DirectX::XMVectorZero(), DirectX::XMVectorSet(0, 1, 0, 0))));
 
 	g_shader = std::make_unique<Shader>(dev, L"shaders/basic.hlsl");
+	g_debugPrimitiveShader = std::make_unique<Shader>(dev, L"shaders/primitive.hlsl");
+
 	g_model = std::make_unique<Model>(dev, "models/Snow covered CottageOBJ.obj");
 
 	g_shadowMap = std::make_unique<RenderTarget>(dev, 1024, 1024, std::string(), "D24S8");
+
+	g_debugDrawer = std::make_unique<DirectX::PrimitiveBatch<Vertex3D>>(devcon);
 }
 
 
@@ -541,35 +552,34 @@ void UpdateFrame()
 		g_camera->SetProjectionData(g_camera->GetProjectionData() + deltaFrustum);
 	}
 
+	g_lightCamera->UpdateFrustum();
 	g_camera->UpdateFrustum();
 
-	auto&& frustum = g_camera->GetFrustum();
+	// 
 
-	std::array<std::tuple<DirectX::SimpleMath::Vector3, float, CullResult>, 11> testSpheres =
-	{
-		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, 0.0f, 0.0f}, 1.0f, CullResult::INSIDE),			//
-		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, 0.0f, -100.0f }, 1.0f, CullResult::OUTSIDE),	// behind camera
-		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, 0.0f, 600.0f }, 1.0f, CullResult::OUTSIDE),		// too far
-		std::make_tuple(DirectX::SimpleMath::Vector3{ 100.0f, 0.0f, 0.0f }, 1.0f, CullResult::OUTSIDE),		// right side
-		std::make_tuple(DirectX::SimpleMath::Vector3{ -100.0f, 0.0f, 0.0f }, 1.0f, CullResult::OUTSIDE),	// left side
-		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, 100.0f, 0.0f }, 1.0f, CullResult::OUTSIDE),		// top side
-		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, -100.0f, 0.0f }, 1.0f, CullResult::OUTSIDE),	// right side
-		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, 5.0f, 5.0f }, 1.0f, CullResult::INTERSECTS),	// intersection with top
-		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, -7.0f, 5.0f }, 4.0f, CullResult::INTERSECTS),	// intersection with btm
-		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, 0.0f, 500.0f }, 10.0f, CullResult::INTERSECTS),	// intersection with far
-		std::make_tuple(DirectX::SimpleMath::Vector3{ 0.0f, 0.0f, -6.0f }, 10.0f, CullResult::INTERSECTS),	// intersection with btm
-	};
+	const float k_frameTime = 60.0f / 1000.0f; //sec
 
-	for (auto i = 0; i < testSpheres.size(); i++)
-	{
-		auto&& testSphere = testSpheres[i];
-		auto result = frustum.CullSphere(std::get<0>(testSphere), std::get<1>(testSphere));
-		assert(result == std::get<2>(testSphere));
-	}
-
-	int i = 5;
-
-	//auto mouse = g_mouse->GetState();
+	//auto newScale = g_model->GetScale();
+	//
+	//static bool inc = true;
+	//if (inc)
+	//{
+	//	newScale += DirectX::SimpleMath::Vector3{ 0.1f } * k_frameTime;
+	//	if (newScale.x >= 2.0f)
+	//	{
+	//		inc = false;
+	//	}
+	//}
+	//else
+	//{
+	//	newScale -= DirectX::SimpleMath::Vector3{ 0.1f } *k_frameTime;
+	//	if (newScale.x <= 1.0f)
+	//	{
+	//		inc = true;
+	//	}
+	//}
+	//
+	//g_model->SetScale(newScale);
 }
 
 // this is the function used to render a single frame
@@ -588,7 +598,7 @@ void RenderFrame(void)
 			// Get a pointer to the data in the constant buffer.
 			auto dataPtr = (ConstantBufferType*)ms.pData;
 
-			auto world = DirectX::XMMatrixIdentity();
+			auto world = g_model->GetTransform();
 			auto viewProj = g_lightCamera->GetViewProjectionTransform();
 			auto worldViewProj = world * viewProj;
 
@@ -606,7 +616,7 @@ void RenderFrame(void)
 		}
 
 		g_shader->Bind(devcon);
-		g_model->Render(devcon);
+		g_model->Render(devcon, g_lightCamera->GetFrustum());
 	}
 
 	// clear the back buffer to a deep blue
@@ -627,7 +637,7 @@ void RenderFrame(void)
 		// Get a pointer to the data in the constant buffer.
 		auto dataPtr = (ConstantBufferType*)ms.pData;
 
-		auto world = DirectX::XMMatrixIdentity();
+		auto world = g_model->GetTransform();
 		auto viewProj = g_camera->GetViewProjectionTransform();
 		auto worldViewProj = world * viewProj;
 
@@ -650,7 +660,50 @@ void RenderFrame(void)
 	}
 
 	g_shader->Bind(devcon);
-	g_model->Render(devcon);
+	g_model->Render(devcon, g_camera->GetFrustum());
+
+	///////////////////////////////////////  debug layer
+
+	g_debugPrimitiveShader->Bind(devcon);
+	g_debugDrawer->Begin();
+
+	{
+		const auto meshCount = g_model->GetMeshCount();
+		for (auto i = 0; i < meshCount; i++)
+		{
+			auto&& mesh = g_model->GetMesh(i);
+			auto&& aabb = mesh.aabb;
+
+			std::array<Vector3, 8> aabbPoints;
+			aabb.GetPoints(aabbPoints.data());
+
+			Vertex3D vtx0{ aabbPoints[0],{ 1, 0, 0, 1 } };
+			Vertex3D vtx1{ aabbPoints[1],{ 1, 0, 0, 1 } };
+			Vertex3D vtx2{ aabbPoints[2],{ 1, 0, 0, 1 } };
+			Vertex3D vtx3{ aabbPoints[3],{ 1, 0, 0, 1 } };
+			Vertex3D vtx4{ aabbPoints[4],{ 1, 0, 0, 1 } };
+			Vertex3D vtx5{ aabbPoints[5],{ 1, 0, 0, 1 } };
+			Vertex3D vtx6{ aabbPoints[6],{ 1, 0, 0, 1 } };
+			Vertex3D vtx7{ aabbPoints[7],{ 1, 0, 0, 1 } };
+
+			g_debugDrawer->DrawLine(vtx0, vtx1);
+			g_debugDrawer->DrawLine(vtx1, vtx2);
+			g_debugDrawer->DrawLine(vtx2, vtx3);
+			g_debugDrawer->DrawLine(vtx3, vtx0);
+
+			g_debugDrawer->DrawLine(vtx4, vtx5);
+			g_debugDrawer->DrawLine(vtx5, vtx6);
+			g_debugDrawer->DrawLine(vtx6, vtx7);
+			g_debugDrawer->DrawLine(vtx7, vtx4);
+
+			g_debugDrawer->DrawLine(vtx0, vtx4);
+			g_debugDrawer->DrawLine(vtx1, vtx5);
+			g_debugDrawer->DrawLine(vtx2, vtx6);
+			g_debugDrawer->DrawLine(vtx3, vtx7);
+		}
+	}
+
+	g_debugDrawer->End();
 
 	// switch the back buffer and the front buffer
 	swapchain->Present(1, 0);
@@ -661,6 +714,9 @@ void RenderFrame(void)
 void CleanD3D(void)
 {
 	Texture::ClearUnreferenced();
+
+	g_debugDrawer.reset();
+	g_debugPrimitiveShader.reset();
 
 	g_lightCamera = nullptr;
 	g_camera = nullptr;

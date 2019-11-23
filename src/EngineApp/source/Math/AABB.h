@@ -8,7 +8,7 @@ class AABB
 public:
 	AABB()
 		: m_minPoint(std::numeric_limits<float>::max())
-		, m_maxPoint(std::numeric_limits<float>::min())
+		, m_maxPoint(std::numeric_limits<float>::lowest())
 	{}
 
 	void								AddPoint(const DirectX::SimpleMath::Vector3& point);

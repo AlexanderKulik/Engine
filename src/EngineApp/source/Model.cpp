@@ -2,6 +2,7 @@
 
 #include "Model.h"
 #include "Texture.h"
+#include "Frustum.h"
 
 #pragma warning( push )
 #pragma warning( disable : 4244 )
@@ -9,6 +10,9 @@
 #pragma warning( pop ) 
 
 Model::Model(ID3D11Device* dev, const std::string& path)
+	: m_position(DirectX::XMVectorZero())
+	, m_rotation(DirectX::XMQuaternionIdentity())
+	, m_scale(DirectX::XMVectorSet(1, 1, 1, 1))
 {
 	objl::Loader loader;
 
@@ -19,6 +23,13 @@ Model::Model(ID3D11Device* dev, const std::string& path)
 		{
 			auto&& mesh = std::make_unique<Mesh>();
 			mesh->name = meshData.MeshName;
+			
+			AABB meshAabb;
+			for (auto&& data : meshData.Vertices)
+			{
+				meshAabb.AddPoint(DirectX::SimpleMath::Vector3{ &data.Position.X });
+			}
+			mesh->aabb = meshAabb;
 
 			// create the vertex buffer
 			{
@@ -78,10 +89,16 @@ Model::Model(ID3D11Device* dev, const std::string& path)
 	}
 }
 
-void Model::Render(ID3D11DeviceContext* context)
+void Model::Render(ID3D11DeviceContext* context, const Frustum& frustum)
 {
 	for (auto&& mesh : m_meshes)
 	{
+		auto&& cullStatus = frustum.CullAABB(mesh->aabb);
+		if (cullStatus == CullResult::OUTSIDE)
+		{
+			continue;
+		}
+
 		if (mesh->diffuse)
 		{
 			mesh->diffuse->Bind(context);
@@ -113,4 +130,9 @@ void Model::SetAllMaterials(Shader* shader)
 	{
 		SetMaterial(idx, shader);
 	}
+}
+
+DirectX::XMMATRIX Model::GetTransform() const
+{
+	return DirectX::XMMatrixAffineTransformation(m_scale, DirectX::XMVectorZero(), m_rotation, m_position);
 }

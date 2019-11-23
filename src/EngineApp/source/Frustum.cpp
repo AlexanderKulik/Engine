@@ -110,21 +110,25 @@ CullResult Frustum::CullAABB(const AABB& aabb) const
 
 		const Vector3 normal{ clipPlane };
 
+		unsigned pointsInside = 0;
 		for (size_t v = 0; v < points.size(); v++)
 		{
-			const float distance = normal.Dot(points[i]) + clipPlane.w;
-			if (distance < 0.0f)
+			const float distance = normal.Dot(points[v]) + clipPlane.w;
+			if (distance > 0.0f)
 			{
-				// point outside
-			}
-			else
-			{
-				// inside
+				pointsInside++;
 			}
 		}
 
-		// check if all points outside -> early out
+		if (pointsInside == 0)
+		{
+			return CullResult::OUTSIDE;
+		}
 
+		if (result != CullResult::INTERSECTS && pointsInside < 8)
+		{
+			result = CullResult::INTERSECTS;
+		}
 	}
 
 
