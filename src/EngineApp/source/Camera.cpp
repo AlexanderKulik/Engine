@@ -2,7 +2,7 @@
 
 #include "Camera.h"
 
-DirectX::XMMATRIX Camera::GetViewTransform() const
+Camera::Matrix Camera::GetViewTransform() const
 {
 	const DirectX::XMVECTOR zeroVector = DirectX::XMVectorZero();
 	const DirectX::XMVECTOR unitVector = DirectX::XMVectorSplatOne();
@@ -13,7 +13,7 @@ DirectX::XMMATRIX Camera::GetViewTransform() const
 	return DirectX::XMMatrixInverse(&det, cameraWorld);
 }
 
-DirectX::XMMATRIX Camera::GetProjectionTransform() const
+Camera::Matrix Camera::GetProjectionTransform() const
 {
 	if (m_isPerspective)
 	{
@@ -25,9 +25,9 @@ DirectX::XMMATRIX Camera::GetProjectionTransform() const
 	}
 }
 
-DirectX::XMMATRIX Camera::GetViewProjectionTransform() const
+Camera::Matrix Camera::GetViewProjectionTransform() const
 {
-	return DirectX::XMMatrixMultiply(GetViewTransform(), GetProjectionTransform());
+	return GetViewTransform() * GetProjectionTransform();
 }
 
 void Camera::UpdateFrustum()

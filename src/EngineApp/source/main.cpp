@@ -30,6 +30,8 @@
 
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Vector4;
+using DirectX::SimpleMath::Quaternion;
+using DirectX::SimpleMath::Matrix;
 
 const unsigned WIDTH = 800;
 const unsigned HEIGHT = 600;
@@ -44,6 +46,11 @@ ID3D11DepthStencilView *pDepthStencilView;
 ID3D11DepthStencilState* m_depthStencilState;
 ID3D11Buffer* pConstantBuffer;
 ID3D11Buffer* pConsantBuffer2;
+
+Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_noDepthRW;
+Microsoft::WRL::ComPtr<ID3D11BlendState> m_blendStateDefault;
+Microsoft::WRL::ComPtr<ID3D11BlendState> m_blendStateTransp;
+Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_rasterState;
 
 std::unique_ptr<DirectX::Keyboard> g_keyboard;
 std::unique_ptr<DirectX::Mouse> g_mouse;
@@ -293,38 +300,104 @@ void InitD3D(HWND hWnd)
 	result = dev->CreateTexture2D(&depthBufferDesc, NULL, &m_depthStencilBuffer);
 	assert(SUCCEEDED(result));
 
-	D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
+	// create default depth stencil state
+	{
+		D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
 
-	// Initialize the description of the stencil state.
-	ZeroMemory(&depthStencilDesc, sizeof(depthStencilDesc));
+		// Initialize the description of the stencil state.
+		ZeroMemory(&depthStencilDesc, sizeof(depthStencilDesc));
 
-	// Set up the description of the stencil state.
-	depthStencilDesc.DepthEnable = true;
-	depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-	depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS;
+		// Set up the description of the stencil state.
+		depthStencilDesc.DepthEnable = true;
+		depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+		depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS;
 
-	depthStencilDesc.StencilEnable = false;
-	depthStencilDesc.StencilReadMask = 0xFF;
-	depthStencilDesc.StencilWriteMask = 0xFF;
+		depthStencilDesc.StencilEnable = false;
+		depthStencilDesc.StencilReadMask = 0xFF;
+		depthStencilDesc.StencilWriteMask = 0xFF;
 
-	// Stencil operations if pixel is front-facing.
-	depthStencilDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	depthStencilDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
-	depthStencilDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	depthStencilDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+		// Stencil operations if pixel is front-facing.
+		depthStencilDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+		depthStencilDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
+		depthStencilDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+		depthStencilDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
 
-	// Stencil operations if pixel is back-facing.
-	depthStencilDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	depthStencilDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
-	depthStencilDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	depthStencilDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-	
-	// Create the depth stencil state.
-	result = dev->CreateDepthStencilState(&depthStencilDesc, &m_depthStencilState);
-	assert(SUCCEEDED(result));
+		// Stencil operations if pixel is back-facing.
+		depthStencilDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+		depthStencilDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
+		depthStencilDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+		depthStencilDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
 
-	// Set the depth stencil state.
-	devcon->OMSetDepthStencilState(m_depthStencilState, 1);
+		// Create the depth stencil state.
+		result = dev->CreateDepthStencilState(&depthStencilDesc, &m_depthStencilState);
+		assert(SUCCEEDED(result));
+	}
+
+	// create depth stencil state for debug primitives
+	{
+		D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
+
+		// Initialize the description of the stencil state.
+		ZeroMemory(&depthStencilDesc, sizeof(depthStencilDesc));
+
+		// Set up the description of the stencil state.
+		depthStencilDesc.DepthEnable = false;
+		depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+		depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS;
+
+		depthStencilDesc.StencilEnable = false;
+		depthStencilDesc.StencilReadMask = 0xFF;
+		depthStencilDesc.StencilWriteMask = 0xFF;
+
+		// Stencil operations if pixel is front-facing.
+		depthStencilDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+		depthStencilDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
+		depthStencilDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+		depthStencilDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+		// Stencil operations if pixel is back-facing.
+		depthStencilDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+		depthStencilDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
+		depthStencilDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+		depthStencilDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+		// Create the depth stencil state.
+		result = dev->CreateDepthStencilState(&depthStencilDesc, m_noDepthRW.GetAddressOf());
+		assert(SUCCEEDED(result));
+	}
+
+	{
+		CD3D11_BLEND_DESC blendDesc{ D3D11_DEFAULT };
+		
+		result = dev->CreateBlendState(&blendDesc, m_blendStateDefault.GetAddressOf());
+		assert(SUCCEEDED(result));
+	}
+
+	{
+		CD3D11_BLEND_DESC blendDesc{ D3D11_DEFAULT };
+
+		//BOOL BlendEnable;
+		//D3D11_BLEND SrcBlend;
+		//D3D11_BLEND DestBlend;
+		//D3D11_BLEND_OP BlendOp;
+		//D3D11_BLEND SrcBlendAlpha;
+		//D3D11_BLEND DestBlendAlpha;
+		//D3D11_BLEND_OP BlendOpAlpha;
+		//UINT8 RenderTargetWriteMask;
+
+		const D3D11_RENDER_TARGET_BLEND_DESC renderTargetBlendDesc =
+		{
+			TRUE,
+			D3D11_BLEND_SRC_ALPHA, D3D11_BLEND_INV_SRC_ALPHA, D3D11_BLEND_OP_ADD,
+			D3D11_BLEND_SRC_ALPHA, D3D11_BLEND_INV_SRC_ALPHA, D3D11_BLEND_OP_ADD,
+			D3D11_COLOR_WRITE_ENABLE_ALL,
+		};
+		for (UINT i = 0; i < D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
+			blendDesc.RenderTarget[i] = renderTargetBlendDesc;
+
+		result = dev->CreateBlendState(&blendDesc, m_blendStateTransp.GetAddressOf());
+		assert(SUCCEEDED(result));
+	}
 
 	D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc;
 	// Initailze the depth stencil view.
@@ -340,32 +413,78 @@ void InitD3D(HWND hWnd)
 	assert(SUCCEEDED(result));
 
 	// Set the viewport
-	D3D11_VIEWPORT viewport;
-	ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
+	{
+		D3D11_VIEWPORT viewport;
+		ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
 
-	viewport.TopLeftX = 0;
-	viewport.TopLeftY = 0;
-	viewport.Width = WIDTH;
-	viewport.Height = HEIGHT;
-	viewport.MinDepth = 0.0f;
-	viewport.MaxDepth = 1.0f;
+		viewport.TopLeftX = 0;
+		viewport.TopLeftY = 0;
+		viewport.Width = WIDTH;
+		viewport.Height = HEIGHT;
+		viewport.MinDepth = 0.0f;
+		viewport.MaxDepth = 1.0f;
 
-	devcon->RSSetViewports(1, &viewport);
+		devcon->RSSetViewports(1, &viewport);
+	}
+
+	// set scissor rect
+	{
+		D3D11_RECT scissorRect;
+		scissorRect.left = 0;
+		scissorRect.top = 0;
+		scissorRect.right = WIDTH;
+		scissorRect.bottom = HEIGHT;
+		devcon->RSSetScissorRects(1, &scissorRect);
+	}
+
+	{
+		CD3D11_RASTERIZER_DESC rasterizerState(D3D11_DEFAULT);
+		//rasterizerState.CullMode = D3D11_CULL_BACK;
+		//rasterizerState.FillMode = D3D11_FILL_SOLID;
+		//rasterizerState.CullMode = D3D11_CULL_FRONT;
+		//rasterizerState.FrontCounterClockwise = true;
+		//rasterizerState.DepthBias = false;
+		//rasterizerState.DepthBiasClamp = 0;
+		//rasterizerState.SlopeScaledDepthBias = 0;
+		//rasterizerState.DepthClipEnable = true;
+		//rasterizerState.ScissorEnable = true;
+		//rasterizerState.MultisampleEnable = false;
+		//rasterizerState.AntialiasedLineEnable = false;
+		//rasterizerState.ForcedSampleCount = 0;
+		result = dev->CreateRasterizerState(&rasterizerState, m_rasterState.GetAddressOf());
+		assert(SUCCEEDED(result));
+	}
 
 	InitGraphics();
 
-	const float fovy = DirectX::XMConvertToRadians(45.0f);
-	const float ar = (float)WIDTH / (float)HEIGHT;
+	{
+		const float fovy = DirectX::XMConvertToRadians(45.0f);
+		const float ar = (float)WIDTH / (float)HEIGHT;
 
-	//g_camera = std::make_unique<Camera>(Camera::Orthographic{ 20.0f }, ar, 0.5f, 500.0f);
-	g_camera = std::make_unique<Camera>(Camera::Perspective{ fovy }, ar, 0.5f, 500.0f);
-	g_camera->SetPosition(DirectX::XMVectorSet(0.0f, 0.0f, -5.0f, 1.0f));
-	g_camera->SetRotation(DirectX::XMQuaternionIdentity());
+		//g_camera = std::make_unique<Camera>(Camera::Orthographic{ 20.0f }, ar, 0.5f, 500.0f);
+		g_camera = std::make_unique<Camera>(Camera::Perspective{ fovy }, ar, 0.5f, 500.0f);
+		g_camera->SetPosition({ 0.0f, 0.0f, -5.0f });
+		g_camera->SetRotation(DirectX::SimpleMath::Quaternion::Identity);
+	}
 
-	g_lightCamera = std::make_unique<Camera>(Camera::Orthographic{ 200.0f }, 1.0f, 0.5f, 500.0f);
-	g_lightCamera->SetPosition(DirectX::XMVectorSet(84.0f, 69.0f, 105.0f, 1.0f));
-	g_lightCamera->SetRotation({ 0.115494534f, -0.882180750f, 0.286937863f, 0.355084032f });
-	//g_lightCamera->SetRotation(DirectX::XMQuaternionRotationMatrix(DirectX::XMMatrixLookAtLH(g_lightCamera->GetPosition(), DirectX::XMVectorZero(), DirectX::XMVectorSet(0, 1, 0, 0))));
+	{
+		g_lightCamera = std::make_unique<Camera>(Camera::Orthographic{ 200.0f }, 1.0f, 0.5f, 500.0f);
+		g_lightCamera->SetPosition({ 84.0f, 69.0f, 105.0f });
+
+		const auto rotMatrix = Matrix::CreateLookAt(g_lightCamera->GetPosition(), Vector3::Zero, Vector3::Up);
+		const auto quat = Quaternion::CreateFromRotationMatrix(rotMatrix);
+		g_lightCamera->SetRotation(quat);
+
+		//g_camera = std::make_unique<Camera>(Camera::Orthographic{ 200.0f }, 1.0f, 0.5f, 500.0f);
+		g_camera->SetPosition(g_lightCamera->GetPosition());
+		g_camera->SetRotation(g_lightCamera->GetRotation());
+
+		auto&& view = g_lightCamera->GetViewTransform();
+		auto zeroVS = Vector3::Transform(Vector3::Zero, view);
+		int a = 45;
+		//g_lightCamera->SetRotation({ 0.115494534f, -0.882180750f, 0.286937863f, 0.355084032f });
+		//g_lightCamera->SetRotation(DirectX::XMQuaternionRotationMatrix(DirectX::XMMatrixLookAtLH(g_lightCamera->GetPosition(), DirectX::XMVectorZero(), DirectX::XMVectorSet(0, 1, 0, 0))));
+	}
 
 	g_shader = std::make_unique<Shader>(dev, L"shaders/basic.hlsl");
 	g_debugPrimitiveShader = std::make_unique<Shader>(dev, L"shaders/primitive.hlsl");
@@ -541,14 +660,13 @@ void UpdateFrame()
 		}
 
 		auto&& cameraPos = g_camera->GetPosition();
-		auto&& cameraFront = DirectX::XMVector3Rotate(DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), g_camera->GetRotation());
-		auto&& cameraRight = DirectX::XMVector3Rotate(DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), g_camera->GetRotation());
-		auto&& cameraUp = DirectX::XMVector3Rotate(DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), g_camera->GetRotation());
+		auto&& cameraRight = Vector3::Transform(Vector3::UnitX, g_camera->GetRotation());
+		auto&& cameraUp = Vector3::Transform(Vector3::UnitY, g_camera->GetRotation());
+		auto&& cameraFront = Vector3::Transform(Vector3::UnitZ, g_camera->GetRotation());
 
-		auto&& offset = DirectX::XMVectorAdd(DirectX::XMVectorScale(cameraFront, deltaMoveFront), DirectX::XMVectorScale(cameraRight, deltaMoveRight)); 
-		offset = DirectX::XMVectorAdd(offset, DirectX::XMVectorScale(cameraUp, deltaMoveUp));
+		auto&& offset = cameraFront * deltaMoveFront + cameraRight * deltaMoveRight + cameraUp * deltaMoveUp;
+		g_camera->SetPosition(cameraPos + offset);
 
-		g_camera->SetPosition(DirectX::XMVectorAdd(cameraPos, offset));
 		g_camera->SetProjectionData(g_camera->GetProjectionData() + deltaFrustum);
 	}
 
@@ -559,32 +677,46 @@ void UpdateFrame()
 
 	const float k_frameTime = 60.0f / 1000.0f; //sec
 
-	//auto newScale = g_model->GetScale();
-	//
-	//static bool inc = true;
-	//if (inc)
-	//{
-	//	newScale += DirectX::SimpleMath::Vector3{ 0.1f } * k_frameTime;
-	//	if (newScale.x >= 2.0f)
-	//	{
-	//		inc = false;
-	//	}
-	//}
-	//else
-	//{
-	//	newScale -= DirectX::SimpleMath::Vector3{ 0.1f } *k_frameTime;
-	//	if (newScale.x <= 1.0f)
-	//	{
-	//		inc = true;
-	//	}
-	//}
-	//
-	//g_model->SetScale(newScale);
+	// apply some animations to model
+	{
+		g_model->SetRotation(g_model->GetRotation() * Quaternion::CreateFromAxisAngle(Vector3::Up, k_frameTime * 0.1f));
+
+		//auto newScale = g_model->GetScale();
+		//
+		//static bool inc = true;
+		//if (inc)
+		//{
+		//	newScale += Vector3{ 0.1f } * k_frameTime;
+		//	if (newScale.x >= 2.0f)
+		//	{
+		//		inc = false;
+		//	}
+		//}
+		//else
+		//{
+		//	newScale -= Vector3{ 0.1f } * k_frameTime;
+		//	if (newScale.x <= 1.0f)
+		//	{
+		//		inc = true;
+		//	}
+		//}
+		//
+		//g_model->SetScale(newScale);
+	}
+
+	g_model->UpdateBoundingVolumes();
 }
 
 // this is the function used to render a single frame
 void RenderFrame(void)
 {
+	// set raster state
+	devcon->RSSetState(m_rasterState.Get());
+
+	// Set the depth stencil state.
+	devcon->OMSetDepthStencilState(m_depthStencilState, 1);
+	devcon->OMSetBlendState(m_blendStateDefault.Get(), nullptr, 0xFFFFFFFF);
+
 	// render to shadow map
 	{
 		g_shadowMap->Bind(devcon);
@@ -598,15 +730,15 @@ void RenderFrame(void)
 			// Get a pointer to the data in the constant buffer.
 			auto dataPtr = (ConstantBufferType*)ms.pData;
 
-			auto world = g_model->GetTransform();
-			auto viewProj = g_lightCamera->GetViewProjectionTransform();
-			auto worldViewProj = world * viewProj;
+			const Matrix& world = g_model->GetTransform();
+			const Matrix viewProj = g_lightCamera->GetViewProjectionTransform();
+			const Matrix worldViewProj = world * viewProj;
 
 			// Copy the matrices into the constant buffer.
-			DirectX::XMStoreFloat4x4(&dataPtr->world, world);
-			DirectX::XMStoreFloat4x4(&dataPtr->view, g_lightCamera->GetViewTransform());
-			DirectX::XMStoreFloat4x4(&dataPtr->worldViewProjection, worldViewProj);
-			DirectX::XMStoreFloat4(&dataPtr->lightDir, DirectX::XMVector3Rotate(-DirectX::SimpleMath::Vector3::UnitZ, g_lightCamera->GetRotation()));
+			dataPtr->world = world;
+			dataPtr->view = g_lightCamera->GetViewTransform();
+			dataPtr->worldViewProjection = worldViewProj;
+			DirectX::XMStoreFloat4(&dataPtr->lightDir, DirectX::XMVector3Rotate(-Vector3::UnitZ, g_lightCamera->GetRotation()));
 
 			// Unlock the constant buffer.
 			devcon->Unmap(pConstantBuffer, 0);
@@ -664,27 +796,102 @@ void RenderFrame(void)
 
 	///////////////////////////////////////  debug layer
 
+	// Set the depth stencil state.
+	//devcon->OMSetDepthStencilState(m_noDepthRW.Get(), 1);
+	devcon->OMSetBlendState(m_blendStateTransp.Get(), nullptr, 0xFFFFFFFF);
+
+	// Lock the constant buffer so it can be written to.
+	{
+		D3D11_MAPPED_SUBRESOURCE ms;
+		auto result = devcon->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
+		assert(SUCCEEDED(result));
+
+		// Get a pointer to the data in the constant buffer.
+		auto dataPtr = (ConstantBufferType*)ms.pData;
+
+		const Matrix& world = Matrix::Identity;
+		const Matrix viewProj = g_camera->GetViewProjectionTransform();
+		const Matrix worldViewProj = world * viewProj;
+
+		// Copy the matrices into the constant buffer.
+		dataPtr->world = world;
+		dataPtr->view = g_camera->GetViewTransform();
+		dataPtr->worldViewProjection = worldViewProj;
+		DirectX::XMStoreFloat4(&dataPtr->lightDir, DirectX::XMVector3Rotate(-Vector3::UnitZ, g_camera->GetRotation()));
+
+		// Unlock the constant buffer.
+		devcon->Unmap(pConstantBuffer, 0);
+
+		// Finanly set the constant buffer in the vertex shader with the updated values.
+		devcon->VSSetConstantBuffers(0, 1, &pConstantBuffer);
+	}
+
 	g_debugPrimitiveShader->Bind(devcon);
 	g_debugDrawer->Begin();
+
+	// render grid
+	{
+		const float k_gridSize = 1000.0f;
+		const float k_cellSize = 50;
+
+		// render X axis
+		{
+			Vertex3D vtx0{ { -k_gridSize, 0.0f, 0.0f }, { 1, 0, 0, 0.5 } };
+			Vertex3D vtx1{ {  k_gridSize, 0.0f, 0.0f }, { 1, 0, 0, 0.5 } };
+			g_debugDrawer->DrawLine(vtx0, vtx1);
+		}
+
+		// render Z axis
+		{
+			Vertex3D vtx0{ { 0.0f, 0.0f, -k_gridSize }, { 0, 0, 1, 0.5 } };
+			Vertex3D vtx1{ { 0.0f, 0.0f,  k_gridSize }, { 0, 0, 1, 0.5 } };
+			g_debugDrawer->DrawLine(vtx0, vtx1);
+		}
+
+		const float cellCount = std::ceilf(k_gridSize / k_cellSize);
+		for (float i = 1; i <= cellCount; i++)
+		{
+			Vertex3D vtx0{ { -k_gridSize, 0.0f, i * k_cellSize },{ 0.5, 0.5, 0.5, 0.5 } };
+			Vertex3D vtx1{ {  k_gridSize, 0.0f, i * k_cellSize },{ 0.5, 0.5, 0.5, 0.5 } };
+			g_debugDrawer->DrawLine(vtx0, vtx1);
+
+			Vertex3D vtx2{ { -k_gridSize, 0.0f, -i * k_cellSize },{ 0.5, 0.5, 0.5, 0.5 } };
+			Vertex3D vtx3{ {  k_gridSize, 0.0f, -i * k_cellSize },{ 0.5, 0.5, 0.5, 0.5 } };
+			g_debugDrawer->DrawLine(vtx2, vtx3);
+		}
+
+		for (float i = 1; i <= cellCount; i++)
+		{
+			Vertex3D vtx0{ { i * k_cellSize, 0.0f, -k_gridSize },{ 0.5, 0.5, 0.5, 0.5 } };
+			Vertex3D vtx1{ { i * k_cellSize, 0.0f,  k_gridSize },{ 0.5, 0.5, 0.5, 0.5 } };
+			g_debugDrawer->DrawLine(vtx0, vtx1);
+
+			Vertex3D vtx2{ { -i * k_cellSize, 0.0f, -k_gridSize },{ 0.5, 0.5, 0.5, 0.5 } };
+			Vertex3D vtx3{ { -i * k_cellSize, 0.0f,  k_gridSize },{ 0.5, 0.5, 0.5, 0.5 } };
+			g_debugDrawer->DrawLine(vtx2, vtx3);
+		}
+	}
 
 	{
 		const auto meshCount = g_model->GetMeshCount();
 		for (auto i = 0; i < meshCount; i++)
 		{
 			auto&& mesh = g_model->GetMesh(i);
-			auto&& aabb = mesh.aabb;
+			auto&& aabb = mesh.worldAabb;
 
 			std::array<Vector3, 8> aabbPoints;
 			aabb.GetPoints(aabbPoints.data());
 
-			Vertex3D vtx0{ aabbPoints[0],{ 1, 0, 0, 1 } };
-			Vertex3D vtx1{ aabbPoints[1],{ 1, 0, 0, 1 } };
-			Vertex3D vtx2{ aabbPoints[2],{ 1, 0, 0, 1 } };
-			Vertex3D vtx3{ aabbPoints[3],{ 1, 0, 0, 1 } };
-			Vertex3D vtx4{ aabbPoints[4],{ 1, 0, 0, 1 } };
-			Vertex3D vtx5{ aabbPoints[5],{ 1, 0, 0, 1 } };
-			Vertex3D vtx6{ aabbPoints[6],{ 1, 0, 0, 1 } };
-			Vertex3D vtx7{ aabbPoints[7],{ 1, 0, 0, 1 } };
+			const Vector4 clr = { 1, 1, 1, 1.0f };
+
+			Vertex3D vtx0{ aabbPoints[0],clr };
+			Vertex3D vtx1{ aabbPoints[1],clr };
+			Vertex3D vtx2{ aabbPoints[2],clr };
+			Vertex3D vtx3{ aabbPoints[3],clr };
+			Vertex3D vtx4{ aabbPoints[4],clr };
+			Vertex3D vtx5{ aabbPoints[5],clr };
+			Vertex3D vtx6{ aabbPoints[6],clr };
+			Vertex3D vtx7{ aabbPoints[7],clr };
 
 			g_debugDrawer->DrawLine(vtx0, vtx1);
 			g_debugDrawer->DrawLine(vtx1, vtx2);
@@ -713,6 +920,11 @@ void RenderFrame(void)
 // this is the function that cleans up Direct3D and COM
 void CleanD3D(void)
 {
+	m_rasterState.Reset();
+	m_noDepthRW.Reset();
+	m_blendStateTransp.Reset();
+	m_blendStateDefault.Reset();
+
 	Texture::ClearUnreferenced();
 
 	g_debugDrawer.reset();

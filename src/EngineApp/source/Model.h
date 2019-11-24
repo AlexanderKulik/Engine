@@ -10,6 +10,7 @@ class Model
 {
 	using Vector3 = DirectX::SimpleMath::Vector3;
 	using Quaternion = DirectX::SimpleMath::Quaternion;
+	using Matrix = DirectX::SimpleMath::Matrix;
 
 public:
 	struct Mesh
@@ -25,7 +26,8 @@ public:
 		std::shared_ptr<Texture>				diffuse;
 		Shader*									material{ nullptr };
 
-		AABB									aabb;
+		AABB									localAabb;
+		AABB									worldAabb;
 	};
 
 public:
@@ -34,8 +36,9 @@ public:
 	void								Render(ID3D11DeviceContext* context, const Frustum& frustum);
 	void								SetMaterial(size_t idx, Shader* shader);
 	void								SetAllMaterials(Shader* shader);
+	void								UpdateBoundingVolumes();
 
-	DirectX::XMMATRIX					GetTransform() const;
+	Matrix								GetTransform() const;
 	size_t								GetMeshCount() const;
 	const Mesh&							GetMesh(size_t idx) const;
 

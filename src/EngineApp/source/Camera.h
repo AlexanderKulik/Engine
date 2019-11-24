@@ -4,6 +4,10 @@
 
 class Camera
 {
+	using Vector3 = DirectX::SimpleMath::Vector3;
+	using Quaternion = DirectX::SimpleMath::Quaternion;
+	using Matrix = DirectX::SimpleMath::Matrix;
+
 public:
 	struct Perspective
 	{
@@ -31,26 +35,26 @@ public:
 		, m_projectionData(ortho.viewHeight)
 	{}
 
-	void						SetPosition(const DirectX::XMVECTOR& newPos);
-	void						SetRotation(const DirectX::XMVECTOR& newRot);
+	void						SetPosition(const Vector3& newPos);
+	void						SetRotation(const Quaternion& newRot);
 	void						SetProjectionData(float projectionData);
 
 	void						UpdateFrustum();
 
-	DirectX::XMMATRIX			GetViewTransform() const;
-	DirectX::XMMATRIX			GetProjectionTransform() const;
-	DirectX::XMMATRIX			GetViewProjectionTransform() const;
+	Matrix						GetViewTransform() const;
+	Matrix						GetProjectionTransform() const;
+	Matrix						GetViewProjectionTransform() const;
 
 	const Frustum&				GetFrustum() const;
-	const DirectX::XMVECTOR&	GetPosition() const;
-	const DirectX::XMVECTOR&	GetRotation() const;
+	const Vector3&				GetPosition() const;
+	const Quaternion&			GetRotation() const;
 	float						GetProjectionData() const;
 	bool						IsPerspective() const;
 
 private:
 	Frustum						m_frustum;
-	DirectX::XMVECTOR			m_position;
-	DirectX::XMVECTOR			m_rotation;
+	Vector3						m_position;
+	Quaternion					m_rotation;
 	float						m_aspectRatio;
 	float						m_projectionData;
 	float						m_nearZ;
@@ -58,12 +62,12 @@ private:
 	bool						m_isPerspective;
 };
 
-inline void Camera::SetPosition(const DirectX::XMVECTOR& newPos)
+inline void Camera::SetPosition(const Vector3& newPos)
 {
 	m_position = newPos;
 }
 
-inline void Camera::SetRotation(const DirectX::XMVECTOR& newRot)
+inline void Camera::SetRotation(const Quaternion& newRot)
 {
 	m_rotation = newRot;
 }
@@ -78,12 +82,12 @@ inline const Frustum & Camera::GetFrustum() const
 	return m_frustum;
 }
 
-inline const DirectX::XMVECTOR& Camera::GetPosition() const
+inline const Camera::Vector3& Camera::GetPosition() const
 { 
 	return m_position; 
 }
 
-inline const DirectX::XMVECTOR& Camera::GetRotation() const
+inline const Camera::Quaternion& Camera::GetRotation() const
 { 
 	return m_rotation; 
 }

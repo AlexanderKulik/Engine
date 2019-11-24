@@ -29,7 +29,7 @@ Model::Model(ID3D11Device* dev, const std::string& path)
 			{
 				meshAabb.AddPoint(DirectX::SimpleMath::Vector3{ &data.Position.X });
 			}
-			mesh->aabb = meshAabb;
+			mesh->localAabb = meshAabb;
 
 			// create the vertex buffer
 			{
@@ -93,7 +93,7 @@ void Model::Render(ID3D11DeviceContext* context, const Frustum& frustum)
 {
 	for (auto&& mesh : m_meshes)
 	{
-		auto&& cullStatus = frustum.CullAABB(mesh->aabb);
+		auto&& cullStatus = frustum.CullAABB(mesh->worldAabb);
 		if (cullStatus == CullResult::OUTSIDE)
 		{
 			continue;
@@ -132,7 +132,23 @@ void Model::SetAllMaterials(Shader* shader)
 	}
 }
 
-DirectX::XMMATRIX Model::GetTransform() const
+void Model::UpdateBoundingVolumes()
+{
+	auto&& transform = GetTransform();
+	for (auto&& mesh : m_meshes)
+	{
+		std::array<Vector3, 8> localAabbPoints;
+		mesh->localAabb.GetPoints(localAabbPoints.data());
+
+		mesh->worldAabb = AABB();
+		for (auto&& p : localAabbPoints)
+		{
+			mesh->worldAabb.AddPoint(Vector3::Transform(p, transform));
+		}
+	}
+}
+
+Model::Matrix Model::GetTransform() const
 {
 	return DirectX::XMMatrixAffineTransformation(m_scale, DirectX::XMVectorZero(), m_rotation, m_position);
 }
