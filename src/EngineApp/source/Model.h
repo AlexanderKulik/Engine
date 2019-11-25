@@ -1,10 +1,26 @@
 #pragma once
 
 #include "Math/AABB.h"
+#include "Shader.h"
 
 class Texture;
-class Shader;
 class Frustum;
+
+struct VertexBufferDesc
+{
+	struct VertexBufferInput
+	{
+		InputSemantic	semantic;
+		InputType		type;
+		unsigned		offset;
+	};
+
+	void AddInput(InputSemantic	semantic, InputType	type);
+
+	std::vector<VertexBufferInput>	inputs;
+	unsigned						stride{ 0 };
+	size_t							hash{ 0 };
+};
 
 class Model
 {
@@ -20,6 +36,8 @@ public:
 		Microsoft::WRL::ComPtr<ID3D11Buffer>	vertexBuffer;
 		Microsoft::WRL::ComPtr<ID3D11Buffer>	indexBuffer;
 
+		VertexBufferDesc						vertexBufferDesc;
+
 		unsigned int							vertexCount;
 		unsigned int							indexCount;
 
@@ -33,7 +51,7 @@ public:
 public:
 	Model(ID3D11Device* dev, const std::string& path);
 
-	void								Render(ID3D11DeviceContext* context, const Frustum& frustum);
+	void								Render(ID3D11Device* dev, ID3D11DeviceContext* context, const Frustum& frustum, Shader* shader);
 	void								SetMaterial(size_t idx, Shader* shader);
 	void								SetAllMaterials(Shader* shader);
 	void								UpdateBoundingVolumes();

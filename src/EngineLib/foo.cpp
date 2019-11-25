@@ -3,6 +3,7 @@
 #include <json/json.h>
 #include <boost/assert.hpp>
 #include <boost/signals2/signal.hpp>
+#include <boost/utility/string_view.hpp>
 
 int testJson(const std::string& jsonVal)
 {
@@ -24,6 +25,13 @@ int testJson(const std::string& jsonVal)
 	connection.disconnect();
 
 	signal();
+
+	std::string str1 = "str1";
+	const char* str2 = "str2";
+
+	boost::string_view stringView = str1;
+	stringView = str2;
+
 
 	return static_cast<int>(root.size());
 }

@@ -3,8 +3,98 @@
 #include <d3dcompiler.h>
 #include <cassert>
 #include <iostream>
+#include <boost/container_hash/hash.hpp>
 
 #include "Shader.h"
+#include "Model.h"
+
+InputSemantic ConvertSemanticNameToEnum(const char* semanticName, unsigned semanticSlot)
+{
+	if (!strcmp(semanticName, "POSITION"))
+	{
+		return InputSemantic::POSITION;
+	}
+	else if (!strcmp(semanticName, "NORMAL"))
+	{
+		return InputSemantic::NORMAL;
+	}
+	else if (!strcmp(semanticName, "TEXCOORD"))
+	{
+		return static_cast<InputSemantic>(static_cast<unsigned>(InputSemantic::TEXCOORD0) + semanticSlot);
+	}
+	//else if (!strcmp(semanticName, "TEXCOORD0"))
+	//{
+	//	return InputSemantic::TEXCOORD0;
+	//}
+	//else if (!strcmp(semanticName, "TEXCOORD1"))
+	//{
+	//	return InputSemantic::TEXCOORD1;
+	//}
+	//else if (!strcmp(semanticName, "TEXCOORD2"))
+	//{
+	//	return InputSemantic::TEXCOORD2;
+	//}
+	//else if (!strcmp(semanticName, "TEXCOORD3"))
+	//{
+	//	return InputSemantic::TEXCOORD3;
+	//}
+	else if (!strcmp(semanticName, "TANGENT"))
+	{
+		return InputSemantic::TANGENT;
+	}
+	else if (!strcmp(semanticName, "COLOR"))
+	{
+		return InputSemantic::COLOR;
+	}
+
+	return InputSemantic::UNKNOWN;
+}
+
+DXGI_FORMAT ConvertInputTypeToDxgiFormat(InputType inputType)
+{
+	switch (inputType)
+	{
+	case InputType::R32_UINT:
+		return DXGI_FORMAT::DXGI_FORMAT_R32_UINT;
+
+	case InputType::R32_SINT:
+		return DXGI_FORMAT::DXGI_FORMAT_R32_SINT;
+
+	case InputType::R32_FLOAT:
+		return DXGI_FORMAT::DXGI_FORMAT_R32_FLOAT;
+
+	case InputType::R32G32_UINT:
+		return DXGI_FORMAT::DXGI_FORMAT_R32G32_UINT;
+
+	case InputType::R32G32_SINT:
+		return DXGI_FORMAT::DXGI_FORMAT_R32G32_SINT;
+
+	case InputType::R32G32_FLOAT:
+		return DXGI_FORMAT::DXGI_FORMAT_R32G32_FLOAT;
+
+	case InputType::R32G32B32_UINT:
+		return DXGI_FORMAT::DXGI_FORMAT_R32G32B32_UINT;
+
+	case InputType::R32G32B32_SINT:
+		return DXGI_FORMAT::DXGI_FORMAT_R32G32B32_SINT;
+
+	case InputType::R32G32B32_FLOAT:
+		return DXGI_FORMAT::DXGI_FORMAT_R32G32B32_FLOAT;
+
+	case InputType::R32G32B32A32_UINT:
+		return DXGI_FORMAT::DXGI_FORMAT_R32G32B32A32_UINT;
+
+	case InputType::R32G32B32A32_SINT:
+		return DXGI_FORMAT::DXGI_FORMAT_R32G32B32A32_SINT;
+
+	case InputType::R32G32B32A32_FLOAT:
+		return DXGI_FORMAT::DXGI_FORMAT_R32G32B32A32_FLOAT;
+
+	default:
+		assert(false && "Unknown Input type!");
+		return DXGI_FORMAT::DXGI_FORMAT_UNKNOWN;
+	}
+}
 
 HRESULT CreateInputLayoutDescFromVertexShaderSignature(ID3DBlob* pShaderBlob, ID3D11Device* pD3DDevice, ID3D11InputLayout** pInputLayout)
 {
@@ -71,7 +161,7 @@ HRESULT CreateInputLayoutDescFromVertexShaderSignature(ID3DBlob* pShaderBlob, ID
 	return pD3DDevice->CreateInputLayout(&inputLayoutDesc[0], static_cast<UINT>(inputLayoutDesc.size()), pShaderBlob->GetBufferPointer(), pShaderBlob->GetBufferSize(), pInputLayout);
 }
 
-HRESULT CreateConstantBufferReflection(ID3DBlob* pShaderBlob, ID3D11Device* pD3DDevice, ID3D11InputLayout** pInputLayout)
+HRESULT CreateConstantBufferReflection(ID3DBlob* pShaderBlob, ID3D11Device* pD3DDevice)
 {
 	// Reflect shader info
 	Microsoft::WRL::ComPtr<ID3D11ShaderReflection> pVertexShaderReflection;
@@ -84,12 +174,54 @@ HRESULT CreateConstantBufferReflection(ID3DBlob* pShaderBlob, ID3D11Device* pD3D
 	D3D11_SHADER_DESC shaderDesc;
 	pVertexShaderReflection->GetDesc(&shaderDesc);
 
-	//
+	struct ConstantShaderBuffer
+	{
+		struct ShaderVariable
+		{
+			std::string name;
+			unsigned length;
+			unsigned offset;
+		};
+
+		ConstantShaderBuffer(unsigned slot, 
+			const std::string& name, 
+			ID3D11ShaderReflectionConstantBuffer* buffer, 
+			const D3D11_SHADER_BUFFER_DESC& bdesc)
+			: mName(name)
+			, mSlot(slot)
+		{	
+			// Populate constant buffer with variables
+			for (unsigned int j = 0; j < bdesc.Variables; ++j)
+			{
+				ID3D11ShaderReflectionVariable* variable = NULL;
+				variable = buffer->GetVariableByIndex(j);
+			
+				D3D11_SHADER_VARIABLE_DESC vdesc;
+				variable->GetDesc(&vdesc);
+			
+				ShaderVariable shadervariable;
+				shadervariable.name = vdesc.Name;
+				shadervariable.length = vdesc.Size;
+				shadervariable.offset = vdesc.StartOffset;
+				mSize += vdesc.Size;
+				mVariables.push_back(shadervariable);
+			}
+
+			assert(mSize == bdesc.Size);
+		}
+
+		std::string mName;
+		unsigned mSlot;
+		unsigned mSize = 0;
+		std::vector<ShaderVariable> mVariables;
+	};
+
+	std::vector<ConstantShaderBuffer> mShaderBuffers;
+
 	//Find all constant buffers
-	//
 	for (unsigned int i = 0; i < shaderDesc.ConstantBuffers; ++i)
 	{
-		unsigned int register_index = 0;
+		unsigned int registerIndex = 0;
 		ID3D11ShaderReflectionConstantBuffer* buffer = NULL;
 		buffer = pVertexShaderReflection->GetConstantBufferByIndex(i);
 
@@ -102,34 +234,28 @@ HRESULT CreateConstantBufferReflection(ID3DBlob* pShaderBlob, ID3D11Device* pD3D
 			pVertexShaderReflection->GetResourceBindingDesc(k, &ibdesc);
 
 			if (!strcmp(ibdesc.Name, bdesc.Name))
-				register_index = ibdesc.BindPoint;
+			{
+				registerIndex = ibdesc.BindPoint;
+				break;
+			}
 		}
 
-		//
-		//Add constant buffer
-		//
-		//oConstantShaderBuffer* shaderbuffer = new ConstantShaderBuffer(register_index, Engine::String.ConvertToWideStr(bdesc.Name), buffer, &bdesc);
-		//mShaderBuffers.push_back(shaderbuffer);
+		mShaderBuffers.emplace_back(registerIndex, bdesc.Name, buffer, bdesc);
 	}
 
-		//
-		//Populate constant buffer with variables
-		//
-	//for (unsigned int j = 0; j < desc->Variables; ++j)
-	//{
-	//	ID3D11ShaderReflectionVariable* variable = NULL;
-	//	variable = buffer->GetVariableByIndex(j);
-	//
-	//	D3D11_SHADER_VARIABLE_DESC vdesc;
-	//	variable->GetDesc(&vdesc);
-	//
-	//	ShaderVariable* shadervariable = new ShaderVariable();
-	//	shadervariable->name = Engine::String.ConvertToWideStr(vdesc.Name);
-	//	shadervariable->length = vdesc.Size;
-	//	shadervariable->offset = vdesc.StartOffset;
-	//	mSize += vdesc.Size;
-	//	mVariables.push_back(shadervariable);
-	//}
+	// Find all samplers
+	std::unordered_map<std::string, unsigned> samplers;
+	for (unsigned int i = 0; i < shaderDesc.BoundResources; ++i)
+	{
+		D3D11_SHADER_INPUT_BIND_DESC shaderInputDesc;
+		HRESULT result = pVertexShaderReflection->GetResourceBindingDesc(i, &shaderInputDesc);
+		assert(SUCCEEDED(result));
+
+		if (shaderInputDesc.Type == D3D_SHADER_INPUT_TYPE::D3D10_SIT_TEXTURE)
+		{
+			samplers.emplace(shaderInputDesc.Name, shaderInputDesc.BindPoint);
+		}
+	}
 
 	return S_OK;
 }
@@ -177,15 +303,108 @@ Shader::Shader(ID3D11Device* dev, const std::wstring& shaderName)
 	//
 	//result = dev->CreateInputLayout(inputElementDesc, 3, vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), m_inputLayout.GetAddressOf());
 	//assert(SUCCEEDED(result));
+	//
+	//result = CreateInputLayoutDescFromVertexShaderSignature(vsBlob.Get(), dev, m_inputLayout.GetAddressOf());
+	//assert(SUCCEEDED(result));
 
-	result = CreateInputLayoutDescFromVertexShaderSignature(vsBlob.Get(), dev, m_inputLayout.GetAddressOf());
+	BlendState blendState1(false, BlendState::SRC_ALPHA, BlendState::INV_SRC_ALPHA, BlendState::SRC_ALPHA, BlendState::INV_SRC_ALPHA, BlendState::ADD);
+	BlendState blendState2(true, BlendState::SRC_ALPHA, BlendState::INV_SRC_ALPHA, BlendState::SRC_ALPHA, BlendState::INV_SRC_ALPHA, BlendState::ADD);
+
+	result = CreateConstantBufferReflection(psBlob.Get(), dev);
 	assert(SUCCEEDED(result));
+
+	m_vsBytecode = vsBlob;
 }
 
 void Shader::Bind(ID3D11DeviceContext* devcon)
 {
-	devcon->IASetInputLayout(m_inputLayout.Get());
+	//devcon->IASetInputLayout(m_inputLayout.Get());
 
 	devcon->VSSetShader(m_vertexShader.Get(), 0, 0);
 	devcon->PSSetShader(m_pixelShader.Get(), 0, 0);
+}
+
+Microsoft::WRL::ComPtr<ID3D11InputLayout> Shader::RequestInputLayout(ID3D11Device* dev, const VertexBufferDesc& vertexBufferDesc)
+{
+	auto it = std::find_if(m_inputLayouts.begin(), m_inputLayouts.end(), [&vertexBufferDesc](auto&& val)
+	{
+		return val.first == vertexBufferDesc.hash;
+	});
+
+	if (it != m_inputLayouts.end())
+	{
+		return it->second;
+	}
+
+	// Reflect shader info
+	Microsoft::WRL::ComPtr<ID3D11ShaderReflection> pVertexShaderReflection;
+	if (FAILED(D3DReflect(m_vsBytecode->GetBufferPointer(), m_vsBytecode->GetBufferSize(), IID_ID3D11ShaderReflection, (void**)&pVertexShaderReflection)))
+	{
+		return nullptr;
+	}
+
+	// Get shader info
+	D3D11_SHADER_DESC shaderDesc;
+	pVertexShaderReflection->GetDesc(&shaderDesc);
+
+	// Read input layout description from shader info
+	std::vector<D3D11_INPUT_ELEMENT_DESC> inputLayoutDesc;
+	inputLayoutDesc.reserve(shaderDesc.InputParameters);
+
+	for (UINT i = 0; i < shaderDesc.InputParameters; i++)
+	{
+		D3D11_SIGNATURE_PARAMETER_DESC paramDesc;
+		pVertexShaderReflection->GetInputParameterDesc(i, &paramDesc);
+
+		auto&& semantic = ConvertSemanticNameToEnum(paramDesc.SemanticName, paramDesc.SemanticIndex);
+		assert(semantic != InputSemantic::UNKNOWN && "Shader has unknown input sematics %s!" && paramDesc.SemanticName);
+		
+		if (semantic == InputSemantic::UNKNOWN)
+		{
+			continue;
+		}
+
+		auto it = std::find_if(vertexBufferDesc.inputs.begin(), vertexBufferDesc.inputs.end(), [semantic](auto&& val)
+		{
+			return val.semantic == semantic;
+		});
+		assert(it != vertexBufferDesc.inputs.end() && "Geometry doesn't have requested by shader inputs!");
+
+		if (it == vertexBufferDesc.inputs.end())
+		{
+			continue;
+		}
+
+		// fill out input element desc
+		D3D11_INPUT_ELEMENT_DESC elementDesc;
+		elementDesc.SemanticName = paramDesc.SemanticName;
+		elementDesc.SemanticIndex = paramDesc.SemanticIndex;
+		elementDesc.Format = ConvertInputTypeToDxgiFormat(it->type);
+		elementDesc.InputSlot = 0;
+		elementDesc.AlignedByteOffset = it->offset;
+		elementDesc.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+		elementDesc.InstanceDataStepRate = 0;
+
+		//save element desc
+		inputLayoutDesc.push_back(elementDesc);
+	}
+
+	Microsoft::WRL::ComPtr<ID3D11InputLayout> inputLayout;
+	HRESULT result = dev->CreateInputLayout(&inputLayoutDesc[0], static_cast<UINT>(inputLayoutDesc.size()), m_vsBytecode->GetBufferPointer(), m_vsBytecode->GetBufferSize(), inputLayout.GetAddressOf());
+	assert(SUCCEEDED(result));
+
+	m_inputLayouts.emplace_back(vertexBufferDesc.hash, inputLayout);
+
+	return inputLayout;
+}
+
+BlendState::BlendState(bool enabled, BlendFactor srcColor, BlendFactor dstColor, BlendFactor srcAlpha, BlendFactor dstAlpha, BlendOp op)
+{
+	m_hash = 0;
+	boost::hash_combine(m_hash, enabled);
+	boost::hash_combine(m_hash, srcColor);
+	boost::hash_combine(m_hash, dstColor);
+	boost::hash_combine(m_hash, srcAlpha);
+	boost::hash_combine(m_hash, dstAlpha);
+	boost::hash_combine(m_hash, op);
 }

@@ -60,6 +60,7 @@ workspace "Engine"
 		flags { "FatalCompileWarnings" }
 		files "../src/EngineApp/source/**"
 		includedirs {
+			"../libs/boost",
 			"../src/EngineLib/source",
 			"../libs/DirectXTK/Inc"
 		}

@@ -7,7 +7,28 @@
 #pragma warning( push )
 #pragma warning( disable : 4244 )
 #include "OBJ_Loader.h"
-#pragma warning( pop ) 
+#pragma warning( pop )
+
+#include <boost/container_hash/hash.hpp>
+
+unsigned GetSizeFromInputType(InputType inputType)
+{
+	switch (inputType)
+	{
+	case InputType::R32G32B32A32_FLOAT:
+		return sizeof(float) * 4;
+
+	case InputType::R32G32B32_FLOAT:
+		return sizeof(float) * 3;
+
+	case InputType::R32G32_FLOAT:
+		return sizeof(float) * 2;
+
+	default:
+		assert(false);
+		return 0;
+	}
+}
 
 Model::Model(ID3D11Device* dev, const std::string& path)
 	: m_position(DirectX::XMVectorZero())
@@ -30,6 +51,10 @@ Model::Model(ID3D11Device* dev, const std::string& path)
 				meshAabb.AddPoint(DirectX::SimpleMath::Vector3{ &data.Position.X });
 			}
 			mesh->localAabb = meshAabb;
+
+			mesh->vertexBufferDesc.AddInput(InputSemantic::POSITION, InputType::R32G32B32_FLOAT);
+			mesh->vertexBufferDesc.AddInput(InputSemantic::NORMAL, InputType::R32G32B32_FLOAT);
+			mesh->vertexBufferDesc.AddInput(InputSemantic::TEXCOORD0, InputType::R32G32_FLOAT);
 
 			// create the vertex buffer
 			{
@@ -89,7 +114,7 @@ Model::Model(ID3D11Device* dev, const std::string& path)
 	}
 }
 
-void Model::Render(ID3D11DeviceContext* context, const Frustum& frustum)
+void Model::Render(ID3D11Device* dev, ID3D11DeviceContext* context, const Frustum& frustum, Shader* shader)
 {
 	for (auto&& mesh : m_meshes)
 	{
@@ -104,8 +129,10 @@ void Model::Render(ID3D11DeviceContext* context, const Frustum& frustum)
 			mesh->diffuse->Bind(context);
 		}
 
+		context->IASetInputLayout( shader->RequestInputLayout(dev, mesh->vertexBufferDesc).Get() );
+
 		// select which vertex buffer to display
-		UINT stride = sizeof(objl::Vertex);
+		UINT stride = mesh->vertexBufferDesc.stride;
 		UINT offset = 0;
 		context->IASetVertexBuffers(0, 1, mesh->vertexBuffer.GetAddressOf(), &stride, &offset);
 		context->IASetIndexBuffer(mesh->indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
@@ -151,4 +178,18 @@ void Model::UpdateBoundingVolumes()
 Model::Matrix Model::GetTransform() const
 {
 	return DirectX::XMMatrixAffineTransformation(m_scale, DirectX::XMVectorZero(), m_rotation, m_position);
+}
+
+void VertexBufferDesc::AddInput(InputSemantic semantic, InputType type)
+{
+	VertexBufferInput input;
+	input.semantic = semantic;
+	input.type = type;
+	input.offset = stride;
+	inputs.push_back(input);
+
+	stride += GetSizeFromInputType(type);
+
+	boost::hash_combine(hash, semantic);
+	boost::hash_combine(hash, type);
 }

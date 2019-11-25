@@ -57,7 +57,7 @@ std::unique_ptr<DirectX::Mouse> g_mouse;
 
 std::unique_ptr<Camera> g_camera, g_lightCamera;
 std::unique_ptr<Model> g_model;
-std::unique_ptr<Shader> g_shader, g_debugPrimitiveShader;
+std::unique_ptr<Shader> g_shader, g_debugPrimitiveShader, g_shadowMapShader;
 std::unique_ptr<RenderTarget> g_shadowMap;
 
 struct Vertex3D
@@ -462,31 +462,33 @@ void InitD3D(HWND hWnd)
 		const float ar = (float)WIDTH / (float)HEIGHT;
 
 		//g_camera = std::make_unique<Camera>(Camera::Orthographic{ 20.0f }, ar, 0.5f, 500.0f);
-		g_camera = std::make_unique<Camera>(Camera::Perspective{ fovy }, ar, 0.5f, 500.0f);
-		g_camera->SetPosition({ 0.0f, 0.0f, -5.0f });
+		g_camera = std::make_unique<Camera>(Camera::Perspective{ fovy }, ar, 0.5f, 5000.0f);
+		g_camera->SetPosition({ 0.0f, 0.0f, -150.0f });
 		g_camera->SetRotation(DirectX::SimpleMath::Quaternion::Identity);
 	}
 
 	{
 		g_lightCamera = std::make_unique<Camera>(Camera::Orthographic{ 200.0f }, 1.0f, 0.5f, 500.0f);
-		g_lightCamera->SetPosition({ 84.0f, 69.0f, 105.0f });
+		g_lightCamera->SetPosition({ 150.f, 70.0f, 80 });
 
-		const auto rotMatrix = Matrix::CreateLookAt(g_lightCamera->GetPosition(), Vector3::Zero, Vector3::Up);
+		auto rotMatrix = Matrix::CreateLookAt(-g_lightCamera->GetPosition(), Vector3::Zero, Vector3::Up);
+		rotMatrix = rotMatrix.Transpose();
 		const auto quat = Quaternion::CreateFromRotationMatrix(rotMatrix);
 		g_lightCamera->SetRotation(quat);
 
 		//g_camera = std::make_unique<Camera>(Camera::Orthographic{ 200.0f }, 1.0f, 0.5f, 500.0f);
-		g_camera->SetPosition(g_lightCamera->GetPosition());
-		g_camera->SetRotation(g_lightCamera->GetRotation());
-
-		auto&& view = g_lightCamera->GetViewTransform();
-		auto zeroVS = Vector3::Transform(Vector3::Zero, view);
-		int a = 45;
+		//g_camera->SetPosition(g_lightCamera->GetPosition());
+		//g_camera->SetRotation(g_lightCamera->GetRotation());
+		//
+		//auto&& view = g_lightCamera->GetViewTransform();
+		//auto zeroVS = Vector3::Transform(Vector3::Zero, view);
+		//int a = 45;
 		//g_lightCamera->SetRotation({ 0.115494534f, -0.882180750f, 0.286937863f, 0.355084032f });
 		//g_lightCamera->SetRotation(DirectX::XMQuaternionRotationMatrix(DirectX::XMMatrixLookAtLH(g_lightCamera->GetPosition(), DirectX::XMVectorZero(), DirectX::XMVectorSet(0, 1, 0, 0))));
 	}
 
 	g_shader = std::make_unique<Shader>(dev, L"shaders/basic.hlsl");
+	g_shadowMapShader = std::make_unique<Shader>(dev, L"shaders/shadowmap.hlsl");
 	g_debugPrimitiveShader = std::make_unique<Shader>(dev, L"shaders/primitive.hlsl");
 
 	g_model = std::make_unique<Model>(dev, "models/Snow covered CottageOBJ.obj");
@@ -747,8 +749,8 @@ void RenderFrame(void)
 			devcon->VSSetConstantBuffers(0, 1, &pConstantBuffer);
 		}
 
-		g_shader->Bind(devcon);
-		g_model->Render(devcon, g_lightCamera->GetFrustum());
+		g_shadowMapShader->Bind(devcon);
+		g_model->Render(dev, devcon, g_lightCamera->GetFrustum(), g_shadowMapShader.get());
 	}
 
 	// clear the back buffer to a deep blue
@@ -792,7 +794,7 @@ void RenderFrame(void)
 	}
 
 	g_shader->Bind(devcon);
-	g_model->Render(devcon, g_camera->GetFrustum());
+	g_model->Render(dev, devcon, g_lightCamera->GetFrustum(), g_shader.get());
 
 	///////////////////////////////////////  debug layer
 
@@ -826,6 +828,11 @@ void RenderFrame(void)
 		devcon->VSSetConstantBuffers(0, 1, &pConstantBuffer);
 	}
 
+	VertexBufferDesc vertexBufferDesc;
+	vertexBufferDesc.AddInput(InputSemantic::POSITION, InputType::R32G32B32_FLOAT);
+	vertexBufferDesc.AddInput(InputSemantic::COLOR, InputType::R32G32B32A32_FLOAT);
+
+	devcon->IASetInputLayout(g_debugPrimitiveShader->RequestInputLayout(dev, vertexBufferDesc).Get());
 	g_debugPrimitiveShader->Bind(devcon);
 	g_debugDrawer->Begin();
 
@@ -935,6 +942,7 @@ void CleanD3D(void)
 	g_model = nullptr;
 	g_shader = nullptr;
 
+	g_shadowMapShader.reset();
 	g_shadowMap = nullptr;
 
 	g_keyboard = nullptr;
