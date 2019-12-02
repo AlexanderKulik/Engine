@@ -2,6 +2,7 @@
 
 #include "Math/AABB.h"
 #include "Shader.h"
+#include "Material.h"
 
 class Texture;
 class Frustum;
@@ -42,7 +43,7 @@ public:
 		unsigned int							indexCount;
 
 		std::shared_ptr<Texture>				diffuse;
-		Shader*									material{ nullptr };
+		Material								material;
 
 		AABB									localAabb;
 		AABB									worldAabb;
@@ -51,9 +52,9 @@ public:
 public:
 	Model(ID3D11Device* dev, const std::string& path);
 
-	void								Render(ID3D11Device* dev, ID3D11DeviceContext* context, const Frustum& frustum, Shader* shader);
-	void								SetMaterial(size_t idx, Shader* shader);
-	void								SetAllMaterials(Shader* shader);
+	void								Render(ID3D11Device* dev, ID3D11DeviceContext* context, const Frustum& frustum, const Material& mat);
+	void								SetMaterial(size_t idx, const Material& mat);
+	void								SetAllMaterials(const Material& mat);
 	void								UpdateBoundingVolumes();
 
 	Matrix								GetTransform() const;

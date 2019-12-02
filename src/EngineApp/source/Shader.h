@@ -5,8 +5,12 @@ struct ID3D11DeviceContext;
 struct ID3D11VertexShader;
 struct ID3D11PixelShader;
 struct ID3D11InputLayout;
+struct ID3D11ShaderReflectionConstantBuffer;
+
+struct _D3D11_SHADER_BUFFER_DESC;
 
 struct VertexBufferDesc;
+class Material;
 
 class BlendState
 {
@@ -78,16 +82,34 @@ enum class InputType
 
 class Shader
 {
-	struct ShaderInputDesc
-	{
+	friend class Material;
 
+	struct ConstantShaderBuffer
+	{
+		struct ShaderVariable
+		{
+			std::string name;
+			unsigned length;
+			unsigned offset;
+		};
+
+		ConstantShaderBuffer(unsigned slot, const std::string& name, ID3D11ShaderReflectionConstantBuffer* buffer, const _D3D11_SHADER_BUFFER_DESC& bdesc);
+
+		std::string mName;
+		unsigned mSlot;
+		unsigned mSize = 0;
+		std::vector<ShaderVariable> mVariables;
 	};
+
 
 public:
 	Shader(ID3D11Device* dev, const std::wstring& shaderName);
 
-	void										Bind(ID3D11DeviceContext* devcon);
 	Microsoft::WRL::ComPtr<ID3D11InputLayout>	RequestInputLayout(ID3D11Device* dev, const VertexBufferDesc& vertexBufferDesc);
+
+private:
+	void										Bind(ID3D11DeviceContext* devcon) const;
+	HRESULT										CreateConstantBufferReflection(ID3DBlob* pShaderBlob, ID3D11Device* pD3DDevice);
 
 private:
 	using InputLayoutsCache = std::vector<std::pair<size_t, Microsoft::WRL::ComPtr<ID3D11InputLayout>>>;
@@ -95,6 +117,8 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11VertexShader>	m_vertexShader;
 	Microsoft::WRL::ComPtr<ID3D11PixelShader>	m_pixelShader;
 	Microsoft::WRL::ComPtr<ID3DBlob>			m_vsBytecode;
+	Microsoft::WRL::ComPtr<ID3D11Buffer>		m_constantBuffer;
 	
 	InputLayoutsCache							m_inputLayouts;
+	std::vector<ConstantShaderBuffer>			m_shaderBuffers;
 };

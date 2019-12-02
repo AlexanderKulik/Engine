@@ -1,9 +1,6 @@
 cbuffer MatrixBuffer : register(b0)
 {
-    float4x4 world;
-	float4x4 view;
     float4x4 worldViewProj;
-    float3 lightDir;
 };
 
 struct VertexInputType
@@ -20,7 +17,7 @@ PixelInputType VShader(VertexInputType input)
 {
     PixelInputType output;
     
-    output.position = mul(worldViewProj, input.position);
+    output.position = mul(float4(input.position.xyz, 1), worldViewProj);
 	
     return output;
 }

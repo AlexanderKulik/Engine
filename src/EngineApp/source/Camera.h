@@ -49,6 +49,7 @@ public:
 	const Vector3&				GetPosition() const;
 	const Quaternion&			GetRotation() const;
 	float						GetProjectionData() const;
+	float						GetAspectRatio() const;
 	bool						IsPerspective() const;
 
 private:
@@ -95,6 +96,11 @@ inline const Camera::Quaternion& Camera::GetRotation() const
 inline float Camera::GetProjectionData() const
 {
 	return m_projectionData;
+}
+
+inline float Camera::GetAspectRatio() const
+{
+	return m_aspectRatio;
 }
 
 inline bool Camera::IsPerspective() const

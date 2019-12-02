@@ -24,6 +24,7 @@
 #include "RenderTarget.h"
 #include "Texture.h"
 #include "Model.h"
+#include "Material.h"
 
 #undef min
 #undef max
@@ -44,8 +45,6 @@ ID3D11RenderTargetView *backbuffer;    // the pointer to our back buffer
 ID3D11Texture2D* m_depthStencilBuffer;
 ID3D11DepthStencilView *pDepthStencilView;
 ID3D11DepthStencilState* m_depthStencilState;
-ID3D11Buffer* pConstantBuffer;
-ID3D11Buffer* pConsantBuffer2;
 
 Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_noDepthRW;
 Microsoft::WRL::ComPtr<ID3D11BlendState> m_blendStateDefault;
@@ -60,6 +59,8 @@ std::unique_ptr<Model> g_model;
 std::unique_ptr<Shader> g_shader, g_debugPrimitiveShader, g_shadowMapShader;
 std::unique_ptr<RenderTarget> g_shadowMap;
 
+Material basicMaterial, shadowMapMaterial, primitiveMaterial;
+
 struct Vertex3D
 {
 	DirectX::SimpleMath::Vector3 pos;
@@ -68,26 +69,11 @@ struct Vertex3D
 
 std::unique_ptr<DirectX::PrimitiveBatch<Vertex3D>> g_debugDrawer;
 
-struct ConstantBufferType
-{
-	DirectX::XMFLOAT4X4 world;
-	DirectX::XMFLOAT4X4 view;
-	DirectX::XMFLOAT4X4 worldViewProjection;
-	DirectX::XMFLOAT4 lightDir;
-};
-
-struct FogDataBuffer
-{
-	DirectX::XMFLOAT4 params;		// start and end in xy, zw not used
-	DirectX::XMFLOAT4 color;		// color and influence in alpha
-};
-
 // function prototypes
 void InitD3D(HWND hWnd);    // sets up and initializes Direct3D
 void UpdateFrame(void);     // renders a single frame
 void RenderFrame(void);     // renders a single frame
 void CleanD3D(void);        // closes Direct3D and releases memory
-void InitGraphics(void);    // creates the shape to render
 
 // the WindowProc function prototype
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -427,15 +413,15 @@ void InitD3D(HWND hWnd)
 		devcon->RSSetViewports(1, &viewport);
 	}
 
-	// set scissor rect
-	{
-		D3D11_RECT scissorRect;
-		scissorRect.left = 0;
-		scissorRect.top = 0;
-		scissorRect.right = WIDTH;
-		scissorRect.bottom = HEIGHT;
-		devcon->RSSetScissorRects(1, &scissorRect);
-	}
+	//// set scissor rect
+	//{
+	//	D3D11_RECT scissorRect;
+	//	scissorRect.left = 0;
+	//	scissorRect.top = 0;
+	//	scissorRect.right = WIDTH;
+	//	scissorRect.bottom = HEIGHT;
+	//	devcon->RSSetScissorRects(1, &scissorRect);
+	//}
 
 	{
 		CD3D11_RASTERIZER_DESC rasterizerState(D3D11_DEFAULT);
@@ -455,8 +441,6 @@ void InitD3D(HWND hWnd)
 		assert(SUCCEEDED(result));
 	}
 
-	InitGraphics();
-
 	{
 		const float fovy = DirectX::XMConvertToRadians(45.0f);
 		const float ar = (float)WIDTH / (float)HEIGHT;
@@ -471,12 +455,12 @@ void InitD3D(HWND hWnd)
 		g_lightCamera = std::make_unique<Camera>(Camera::Orthographic{ 200.0f }, 1.0f, 0.5f, 500.0f);
 		g_lightCamera->SetPosition({ 150.f, 70.0f, 80 });
 
-		auto rotMatrix = Matrix::CreateLookAt(-g_lightCamera->GetPosition(), Vector3::Zero, Vector3::Up);
+		Matrix rotMatrix = Matrix::CreateLookAt(-g_lightCamera->GetPosition(), Vector3::Zero, Vector3::Up);
 		rotMatrix = rotMatrix.Transpose();
 		const auto quat = Quaternion::CreateFromRotationMatrix(rotMatrix);
 		g_lightCamera->SetRotation(quat);
 
-		//g_camera = std::make_unique<Camera>(Camera::Orthographic{ 200.0f }, 1.0f, 0.5f, 500.0f);
+		//g_camera = std::make_unique<Camera>(Camera::Orthographic{ 200.0f }, g_camera->GetAspectRatio(), 0.5f, 500.0f);
 		//g_camera->SetPosition(g_lightCamera->GetPosition());
 		//g_camera->SetRotation(g_lightCamera->GetRotation());
 		//
@@ -491,55 +475,22 @@ void InitD3D(HWND hWnd)
 	g_shadowMapShader = std::make_unique<Shader>(dev, L"shaders/shadowmap.hlsl");
 	g_debugPrimitiveShader = std::make_unique<Shader>(dev, L"shaders/primitive.hlsl");
 
-	g_model = std::make_unique<Model>(dev, "models/Snow covered CottageOBJ.obj");
+	//g_model = std::make_unique<Model>(dev, "models/Snow covered CottageOBJ.obj");
+	//g_model = std::make_unique<Model>(dev, "models/orb.obj");
+	g_model = std::make_unique<Model>(dev, "models/cube.obj");
 
 	g_shadowMap = std::make_unique<RenderTarget>(dev, 1024, 1024, std::string(), "D24S8");
 
 	g_debugDrawer = std::make_unique<DirectX::PrimitiveBatch<Vertex3D>>(devcon);
-}
 
+	//
+	basicMaterial = Material(g_shader.get());
+	shadowMapMaterial = Material(g_shadowMapShader.get());
+	primitiveMaterial = Material(g_debugPrimitiveShader.get());
 
-// this is the function that creates the shape to render
-void InitGraphics()
-{
-	{
-		// Setup the description of the dynamic matrix constant buffer that is in the vertex shader.
-		D3D11_BUFFER_DESC matrixBufferDesc;
-		matrixBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
-		matrixBufferDesc.ByteWidth = sizeof(ConstantBufferType);
-		matrixBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-		matrixBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		matrixBufferDesc.MiscFlags = 0;
-		matrixBufferDesc.StructureByteStride = 0;
-
-		// Create the constant buffer pointer so we can access the vertex shader constant buffer from within this class.
-		auto result = dev->CreateBuffer(&matrixBufferDesc, NULL, &pConstantBuffer);
-		assert(SUCCEEDED(result));
-	}
-
-	{
-		// Setup the description of the dynamic matrix constant buffer that is in the vertex shader.
-		D3D11_BUFFER_DESC bufferDesc;
-		bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		bufferDesc.ByteWidth = sizeof(FogDataBuffer);
-		bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-		bufferDesc.CPUAccessFlags = 0;
-		bufferDesc.MiscFlags = 0;
-		bufferDesc.StructureByteStride = 0;
-
-		FogDataBuffer fogData;
-		fogData.color = { 1.0f, 1.0f, 1.0f, 0.2f };
-		fogData.params = { 10.0f, 200.0f, 0.0f, 0.0f };
-
-		D3D11_SUBRESOURCE_DATA subresourceData;
-		subresourceData.pSysMem = &fogData;
-		subresourceData.SysMemPitch = 0;
-		subresourceData.SysMemSlicePitch = 0;
-
-		// Create the constant buffer pointer so we can access the vertex shader constant buffer from within this class.
-		auto result = dev->CreateBuffer(&bufferDesc, &subresourceData, &pConsantBuffer2);
-		assert(SUCCEEDED(result));
-	}
+	basicMaterial.SetUniform("fogParams", { 10.0f, 200.0f, 0.0f, 0.0f });
+	basicMaterial.SetUniform("fogColor", { 1.0f, 1.0f, 1.0f, 0.2f });
+	basicMaterial.SetUniform("lightDir", Vector3::Transform(Vector3::Forward, g_lightCamera->GetRotation()));
 }
 
 
@@ -721,36 +672,10 @@ void RenderFrame(void)
 
 	// render to shadow map
 	{
+		shadowMapMaterial.SetUniform("worldViewProj", (g_model->GetTransform() * g_lightCamera->GetViewProjectionTransform()).Transpose());
+
 		g_shadowMap->Bind(devcon);
-
-		// Lock the constant buffer so it can be written to.
-		{
-			D3D11_MAPPED_SUBRESOURCE ms;
-			auto result = devcon->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
-			assert(SUCCEEDED(result));
-
-			// Get a pointer to the data in the constant buffer.
-			auto dataPtr = (ConstantBufferType*)ms.pData;
-
-			const Matrix& world = g_model->GetTransform();
-			const Matrix viewProj = g_lightCamera->GetViewProjectionTransform();
-			const Matrix worldViewProj = world * viewProj;
-
-			// Copy the matrices into the constant buffer.
-			dataPtr->world = world;
-			dataPtr->view = g_lightCamera->GetViewTransform();
-			dataPtr->worldViewProjection = worldViewProj;
-			DirectX::XMStoreFloat4(&dataPtr->lightDir, DirectX::XMVector3Rotate(-Vector3::UnitZ, g_lightCamera->GetRotation()));
-
-			// Unlock the constant buffer.
-			devcon->Unmap(pConstantBuffer, 0);
-
-			// Finanly set the constant buffer in the vertex shader with the updated values.
-			devcon->VSSetConstantBuffers(0, 1, &pConstantBuffer);
-		}
-
-		g_shadowMapShader->Bind(devcon);
-		g_model->Render(dev, devcon, g_lightCamera->GetFrustum(), g_shadowMapShader.get());
+		g_model->Render(dev, devcon, g_lightCamera->GetFrustum(), shadowMapMaterial);
 	}
 
 	// clear the back buffer to a deep blue
@@ -759,73 +684,45 @@ void RenderFrame(void)
 	// set the render target as the back buffer
 	devcon->OMSetRenderTargets(1, &backbuffer, pDepthStencilView);
 
+	// Set the viewport
+	{
+		D3D11_VIEWPORT viewport;
+		ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
+
+		viewport.TopLeftX = 0;
+		viewport.TopLeftY = 0;
+		viewport.Width = WIDTH;
+		viewport.Height = HEIGHT;
+		viewport.MinDepth = 0.0f;
+		viewport.MaxDepth = 1.0f;
+
+		devcon->RSSetViewports(1, &viewport);
+	}
+
 	devcon->ClearRenderTargetView(backbuffer, clearColor);
 	devcon->ClearDepthStencilView(pDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
-	// Lock the constant buffer so it can be written to.
 	{
-		D3D11_MAPPED_SUBRESOURCE ms;
-		auto result = devcon->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
-		assert(SUCCEEDED(result));
 
-		// Get a pointer to the data in the constant buffer.
-		auto dataPtr = (ConstantBufferType*)ms.pData;
+		const Matrix world = g_model->GetTransform();
+		const Matrix viewProj = g_camera->GetViewProjectionTransform();
+		const Matrix worldViewProj = world * viewProj;
 
-		auto world = g_model->GetTransform();
-		auto viewProj = g_camera->GetViewProjectionTransform();
-		auto worldViewProj = world * viewProj;
+		basicMaterial.SetUniform("world", world.Transpose());
+		basicMaterial.SetUniform("view", g_camera->GetViewTransform().Transpose());
+		basicMaterial.SetUniform("worldViewProj", worldViewProj.Transpose());
 
-		// Copy the matrices into the constant buffer.
-		DirectX::XMStoreFloat4x4(&dataPtr->world, world);
-		DirectX::XMStoreFloat4x4(&dataPtr->view, g_camera->GetViewTransform());
-		DirectX::XMStoreFloat4x4(&dataPtr->worldViewProjection, worldViewProj);
-		DirectX::XMStoreFloat4(&dataPtr->lightDir, DirectX::XMVector3Rotate(-DirectX::SimpleMath::Vector3::UnitZ, g_lightCamera->GetRotation()));
+		g_model->Render(dev, devcon, g_camera->GetFrustum(), basicMaterial);
 
-		// Unlock the constant buffer.
-		devcon->Unmap(pConstantBuffer, 0);
-
-		// Finanly set the constant buffer in the vertex shader with the updated values.
-		devcon->VSSetConstantBuffers(0, 1, &pConstantBuffer);
 	}
-
-	{
-		devcon->PSSetConstantBuffers(1, 1, &pConsantBuffer2);
-		devcon->VSSetConstantBuffers(1, 1, &pConsantBuffer2);
-	}
-
-	g_shader->Bind(devcon);
-	g_model->Render(dev, devcon, g_lightCamera->GetFrustum(), g_shader.get());
-
-	///////////////////////////////////////  debug layer
+	/////////////////////////////////////////  debug layer
 
 	// Set the depth stencil state.
 	//devcon->OMSetDepthStencilState(m_noDepthRW.Get(), 1);
 	devcon->OMSetBlendState(m_blendStateTransp.Get(), nullptr, 0xFFFFFFFF);
 
-	// Lock the constant buffer so it can be written to.
 	{
-		D3D11_MAPPED_SUBRESOURCE ms;
-		auto result = devcon->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
-		assert(SUCCEEDED(result));
-
-		// Get a pointer to the data in the constant buffer.
-		auto dataPtr = (ConstantBufferType*)ms.pData;
-
-		const Matrix& world = Matrix::Identity;
-		const Matrix viewProj = g_camera->GetViewProjectionTransform();
-		const Matrix worldViewProj = world * viewProj;
-
-		// Copy the matrices into the constant buffer.
-		dataPtr->world = world;
-		dataPtr->view = g_camera->GetViewTransform();
-		dataPtr->worldViewProjection = worldViewProj;
-		DirectX::XMStoreFloat4(&dataPtr->lightDir, DirectX::XMVector3Rotate(-Vector3::UnitZ, g_camera->GetRotation()));
-
-		// Unlock the constant buffer.
-		devcon->Unmap(pConstantBuffer, 0);
-
-		// Finanly set the constant buffer in the vertex shader with the updated values.
-		devcon->VSSetConstantBuffers(0, 1, &pConstantBuffer);
+		primitiveMaterial.SetUniform("worldViewProj", (g_camera->GetViewProjectionTransform()).Transpose());
 	}
 
 	VertexBufferDesc vertexBufferDesc;
@@ -833,7 +730,7 @@ void RenderFrame(void)
 	vertexBufferDesc.AddInput(InputSemantic::COLOR, InputType::R32G32B32A32_FLOAT);
 
 	devcon->IASetInputLayout(g_debugPrimitiveShader->RequestInputLayout(dev, vertexBufferDesc).Get());
-	g_debugPrimitiveShader->Bind(devcon);
+	primitiveMaterial.Bind(devcon);
 	g_debugDrawer->Begin();
 
 	// render grid

@@ -1,13 +1,9 @@
-cbuffer MatrixBuffer : register(b0)
+cbuffer MatrixBuffer
 {
     float4x4 world;
 	float4x4 view;
     float4x4 worldViewProj;
     float3 lightDir;
-};
-
-cbuffer FogData : register(b1)
-{
 	float4 fogParams;
 	float4 fogColor;
 };
@@ -32,13 +28,13 @@ PixelInputType VShader(VertexInputType input)
 {
     PixelInputType output;
     
-	float4 normalWS = mul(world, float4(input.normal, 0.0));
+	float4 normalWS = mul(float4(input.normal, 0), world);
 	float diffuse = saturate(dot(normalWS.xyz, lightDir));
 	
-	float4 positionVS = mul(view, float4(input.position, 1));
+	float4 positionVS = mul(float4(input.position, 1), view);
 	float fogFactor = saturate( (positionVS.z - fogParams.x)/(fogParams.y - fogParams.x) );
 
-    output.position = mul(worldViewProj, float4(input.position, 1));
+    output.position = mul(float4(input.position, 1), worldViewProj);
     output.color = float4(0.5, 0.5, 0.5, 1.0) + float4(diffuse * 0.5, diffuse * 0.5, diffuse * 0.5, 1.0);
 	output.normal = normalWS.xyz;
 	output.uv = input.uv;
@@ -57,7 +53,7 @@ float4 PShader(PixelInputType input) : SV_TARGET
 
 	float4 textureColor = shaderTexture.Sample(SampleType, input.uv);
 
-	output.rgb = textureColor * input.color;
+	output.rgb = /*textureColor **/ input.color;
 
 	output.rgb = lerp(output.rgb, fogColor.rgb, input.fogFactor * fogColor.a);
 

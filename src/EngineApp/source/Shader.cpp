@@ -96,6 +96,38 @@ DXGI_FORMAT ConvertInputTypeToDxgiFormat(InputType inputType)
 	}
 }
 
+//////////////////////////////////////////////////////////////
+
+Shader::ConstantShaderBuffer::ConstantShaderBuffer(unsigned slot,
+	const std::string& name,
+	ID3D11ShaderReflectionConstantBuffer* buffer,
+	const D3D11_SHADER_BUFFER_DESC& bdesc)
+	: mName(name)
+	, mSlot(slot)
+{
+	// Populate constant buffer with variables
+	for (unsigned int j = 0; j < bdesc.Variables; ++j)
+	{
+		ID3D11ShaderReflectionVariable* variable = NULL;
+		variable = buffer->GetVariableByIndex(j);
+
+		D3D11_SHADER_VARIABLE_DESC vdesc;
+		variable->GetDesc(&vdesc);
+
+		ShaderVariable shadervariable;
+		shadervariable.name = vdesc.Name;
+		shadervariable.length = vdesc.Size;
+		shadervariable.offset = vdesc.StartOffset;
+		//mSize += vdesc.Size;
+		mVariables.push_back(shadervariable);
+	}
+
+	mSize = bdesc.Size;
+	//assert(mSize == bdesc.Size);
+}
+
+//////////////////////////////////////////////////////////////
+
 HRESULT CreateInputLayoutDescFromVertexShaderSignature(ID3DBlob* pShaderBlob, ID3D11Device* pD3DDevice, ID3D11InputLayout** pInputLayout)
 {
 	// Reflect shader info
@@ -161,7 +193,7 @@ HRESULT CreateInputLayoutDescFromVertexShaderSignature(ID3DBlob* pShaderBlob, ID
 	return pD3DDevice->CreateInputLayout(&inputLayoutDesc[0], static_cast<UINT>(inputLayoutDesc.size()), pShaderBlob->GetBufferPointer(), pShaderBlob->GetBufferSize(), pInputLayout);
 }
 
-HRESULT CreateConstantBufferReflection(ID3DBlob* pShaderBlob, ID3D11Device* pD3DDevice)
+HRESULT Shader::CreateConstantBufferReflection(ID3DBlob* pShaderBlob, ID3D11Device* pD3DDevice)
 {
 	// Reflect shader info
 	Microsoft::WRL::ComPtr<ID3D11ShaderReflection> pVertexShaderReflection;
@@ -173,50 +205,6 @@ HRESULT CreateConstantBufferReflection(ID3DBlob* pShaderBlob, ID3D11Device* pD3D
 	// Get shader info
 	D3D11_SHADER_DESC shaderDesc;
 	pVertexShaderReflection->GetDesc(&shaderDesc);
-
-	struct ConstantShaderBuffer
-	{
-		struct ShaderVariable
-		{
-			std::string name;
-			unsigned length;
-			unsigned offset;
-		};
-
-		ConstantShaderBuffer(unsigned slot, 
-			const std::string& name, 
-			ID3D11ShaderReflectionConstantBuffer* buffer, 
-			const D3D11_SHADER_BUFFER_DESC& bdesc)
-			: mName(name)
-			, mSlot(slot)
-		{	
-			// Populate constant buffer with variables
-			for (unsigned int j = 0; j < bdesc.Variables; ++j)
-			{
-				ID3D11ShaderReflectionVariable* variable = NULL;
-				variable = buffer->GetVariableByIndex(j);
-			
-				D3D11_SHADER_VARIABLE_DESC vdesc;
-				variable->GetDesc(&vdesc);
-			
-				ShaderVariable shadervariable;
-				shadervariable.name = vdesc.Name;
-				shadervariable.length = vdesc.Size;
-				shadervariable.offset = vdesc.StartOffset;
-				mSize += vdesc.Size;
-				mVariables.push_back(shadervariable);
-			}
-
-			assert(mSize == bdesc.Size);
-		}
-
-		std::string mName;
-		unsigned mSlot;
-		unsigned mSize = 0;
-		std::vector<ShaderVariable> mVariables;
-	};
-
-	std::vector<ConstantShaderBuffer> mShaderBuffers;
 
 	//Find all constant buffers
 	for (unsigned int i = 0; i < shaderDesc.ConstantBuffers; ++i)
@@ -240,7 +228,7 @@ HRESULT CreateConstantBufferReflection(ID3DBlob* pShaderBlob, ID3D11Device* pD3D
 			}
 		}
 
-		mShaderBuffers.emplace_back(registerIndex, bdesc.Name, buffer, bdesc);
+		m_shaderBuffers.emplace_back(registerIndex, bdesc.Name, buffer, bdesc);
 	}
 
 	// Find all samplers
@@ -306,22 +294,38 @@ Shader::Shader(ID3D11Device* dev, const std::wstring& shaderName)
 	//
 	//result = CreateInputLayoutDescFromVertexShaderSignature(vsBlob.Get(), dev, m_inputLayout.GetAddressOf());
 	//assert(SUCCEEDED(result));
+	//
+	//BlendState blendState1(false, BlendState::SRC_ALPHA, BlendState::INV_SRC_ALPHA, BlendState::SRC_ALPHA, BlendState::INV_SRC_ALPHA, BlendState::ADD);
+	//BlendState blendState2(true, BlendState::SRC_ALPHA, BlendState::INV_SRC_ALPHA, BlendState::SRC_ALPHA, BlendState::INV_SRC_ALPHA, BlendState::ADD);
 
-	BlendState blendState1(false, BlendState::SRC_ALPHA, BlendState::INV_SRC_ALPHA, BlendState::SRC_ALPHA, BlendState::INV_SRC_ALPHA, BlendState::ADD);
-	BlendState blendState2(true, BlendState::SRC_ALPHA, BlendState::INV_SRC_ALPHA, BlendState::SRC_ALPHA, BlendState::INV_SRC_ALPHA, BlendState::ADD);
+	result = CreateConstantBufferReflection(vsBlob.Get(), dev);
+	assert(SUCCEEDED(result));
 
-	result = CreateConstantBufferReflection(psBlob.Get(), dev);
+	assert(m_shaderBuffers.size() == 1);
+
+	D3D11_BUFFER_DESC constantBufferDesc;
+	ZeroMemory(&constantBufferDesc, sizeof(constantBufferDesc));
+
+	constantBufferDesc.Usage = D3D11_USAGE::D3D11_USAGE_DYNAMIC;
+	constantBufferDesc.ByteWidth = m_shaderBuffers[0].mSize;
+	constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	constantBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	constantBufferDesc.MiscFlags = 0;
+	constantBufferDesc.StructureByteStride = 0;
+
+	result = dev->CreateBuffer(&constantBufferDesc, nullptr, m_constantBuffer.GetAddressOf());
 	assert(SUCCEEDED(result));
 
 	m_vsBytecode = vsBlob;
 }
 
-void Shader::Bind(ID3D11DeviceContext* devcon)
+void Shader::Bind(ID3D11DeviceContext* devcon) const
 {
-	//devcon->IASetInputLayout(m_inputLayout.Get());
-
 	devcon->VSSetShader(m_vertexShader.Get(), 0, 0);
 	devcon->PSSetShader(m_pixelShader.Get(), 0, 0);
+
+	devcon->VSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
+	devcon->PSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
 }
 
 Microsoft::WRL::ComPtr<ID3D11InputLayout> Shader::RequestInputLayout(ID3D11Device* dev, const VertexBufferDesc& vertexBufferDesc)

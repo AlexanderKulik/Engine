@@ -20,6 +20,8 @@ public:
 	ID3D11ShaderResourceView*							GetDepthTexture() const;
 	const DirectX::XMFLOAT4&							GetClearColor() const;
 	const DirectX::SimpleMath::Rectangle&				GetViewport() const;
+	unsigned											GetWidth() const;
+	unsigned											GetHeight() const;
 
 private:
 	Microsoft::WRL::ComPtr<ID3D11Texture2D>				m_colorBuffer;
@@ -62,4 +64,14 @@ inline const DirectX::XMFLOAT4& RenderTarget::GetClearColor() const
 inline const DirectX::SimpleMath::Rectangle& RenderTarget::GetViewport() const
 {
 	return m_viewport;
+}
+
+inline unsigned RenderTarget::GetWidth() const
+{
+	return 0;
+}
+
+inline unsigned RenderTarget::GetHeight() const
+{
+	return 0;
 }

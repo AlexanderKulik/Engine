@@ -114,7 +114,7 @@ Model::Model(ID3D11Device* dev, const std::string& path)
 	}
 }
 
-void Model::Render(ID3D11Device* dev, ID3D11DeviceContext* context, const Frustum& frustum, Shader* shader)
+void Model::Render(ID3D11Device* dev, ID3D11DeviceContext* context, const Frustum& frustum, const Material& material)
 {
 	for (auto&& mesh : m_meshes)
 	{
@@ -124,10 +124,14 @@ void Model::Render(ID3D11Device* dev, ID3D11DeviceContext* context, const Frustu
 			continue;
 		}
 
+		material.Bind(context);
+
 		if (mesh->diffuse)
 		{
 			mesh->diffuse->Bind(context);
 		}
+
+		auto&& shader = const_cast<Shader*>(material.GetShader());
 
 		context->IASetInputLayout( shader->RequestInputLayout(dev, mesh->vertexBufferDesc).Get() );
 
@@ -145,17 +149,17 @@ void Model::Render(ID3D11Device* dev, ID3D11DeviceContext* context, const Frustu
 	}
 }
 
-void Model::SetMaterial(size_t idx, Shader* shader)
+void Model::SetMaterial(size_t idx, const Material& mat)
 {
 	assert(idx < m_meshes.size());
-	m_meshes[idx]->material = shader;
+	m_meshes[idx]->material = mat;
 }
 
-void Model::SetAllMaterials(Shader* shader)
+void Model::SetAllMaterials(const Material& mat)
 {
 	for (size_t idx = 0, sz = m_meshes.size(); idx < sz; idx++)
 	{
-		SetMaterial(idx, shader);
+		SetMaterial(idx, mat);
 	}
 }
 
