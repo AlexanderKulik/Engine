@@ -2,6 +2,7 @@
 
 #include "Material.h"
 #include "Shader.h"
+#include "Texture.h"
 
 Material::Material()
 {
@@ -16,6 +17,8 @@ Material::Material(const Shader* shader)
 		auto&& size = constantBuffer.mSize;
 
 		m_storage.mem = new char[size];
+
+		memset(m_samplers, 0, sizeof(m_samplers));
 	}
 }
 
@@ -35,6 +38,8 @@ Material::Material(const Material& other)
 		m_storage.mem = new char[size];
 
 		memcpy(m_storage.mem, other.m_storage.mem, size);
+
+		memcpy(m_samplers, other.m_samplers, sizeof(m_samplers));
 	}
 }
 
@@ -47,6 +52,8 @@ Material::Material(Material && other)
 	}
 
 	m_storage.mem = other.m_storage.mem;
+
+	memcpy(m_samplers, other.m_samplers, sizeof(m_samplers));
 
 	other.m_shader = nullptr;
 	other.m_storage.mem = nullptr;
@@ -95,6 +102,25 @@ UniformHandle Material::FindUniformHandle(const std::string & name) const
 		if (it != variables.end())
 		{
 			return UniformHandle{ static_cast<unsigned>(std::distance(variables.begin(), it)) };
+		}
+	}
+
+	return UniformHandle{ UniformHandle::Invalid };
+}
+
+UniformHandle Material::FindTextureHandle(const std::string & name) const
+{
+	if (m_shader)
+	{
+		auto&& samplers = m_shader->m_shaderSamplers;
+		auto it = std::find_if(samplers.begin(), samplers.end(), [&name](auto&& val)
+		{
+			return val.name == name;
+		});
+
+		if (it != samplers.end())
+		{
+			return UniformHandle{ static_cast<unsigned>(std::distance(samplers.begin(), it)) };
 		}
 	}
 
@@ -158,10 +184,13 @@ void Material::SetUniform(UniformHandle handle, const DirectX::SimpleMath::Matri
 
 void Material::SetUniform(UniformHandle handle, float values[], unsigned count)
 {
-	auto&& uniformData = m_shader->m_shaderBuffers[0].mVariables[handle.idx];
-	assert(uniformData.length <= sizeof(float) * count);
-	auto&& dst = static_cast<char*>(m_storage.mem) + uniformData.offset;
-	memcpy(dst, values, sizeof(float) * count);
+	if (m_shader)
+	{
+		auto&& uniformData = m_shader->m_shaderBuffers[0].mVariables[handle.idx];
+		assert(uniformData.length <= sizeof(float) * count);
+		auto&& dst = static_cast<char*>(m_storage.mem) + uniformData.offset;
+		memcpy(dst, values, sizeof(float) * count);
+	}
 }
 
 void Material::SetUniform(const std::string& name, float value)
@@ -218,6 +247,24 @@ void Material::SetUniform(const std::string& name, float values[], unsigned coun
 	}
 }
 
+void Material::SetTexture(UniformHandle handle, Texture* texture)
+{
+	if (m_shader)
+	{
+		auto&& samplerData = m_shader->m_shaderSamplers[handle.idx];
+		m_samplers[samplerData.slot] = texture;
+	}
+}
+
+void Material::SetTexture(const std::string& name, Texture* texture)
+{
+	auto handle = FindTextureHandle(name);
+	if (handle.idx != UniformHandle::Invalid)
+	{
+		SetTexture(handle, texture);
+	}
+}
+
 void Material::Reset()
 {
 	assert(false);
@@ -238,7 +285,14 @@ void Material::Bind(ID3D11DeviceContext* devcon) const
 
 		memcpy(ms.pData, m_storage.mem, size);
 
-		// Unlock the constant buffer.
 		devcon->Unmap(m_shader->m_constantBuffer.Get(), 0);
+
+		for (unsigned i = 0; i < MAX_SAMPLERS; i++)
+		{
+			if (m_samplers[i])
+			{
+				m_samplers[i]->Bind(devcon, i);
+			}
+		}
 	}
 }

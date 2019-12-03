@@ -2,6 +2,9 @@
 
 #include "Frustum.h"
 
+#undef near
+#undef far
+
 class Camera
 {
 	using Vector3 = DirectX::SimpleMath::Vector3;
@@ -38,6 +41,9 @@ public:
 	void						SetPosition(const Vector3& newPos);
 	void						SetRotation(const Quaternion& newRot);
 	void						SetProjectionData(float projectionData);
+	void						SetAspectRatio(float aspectRatio);
+	void						SetNear(float near);
+	void						SetFar(float far);
 
 	void						UpdateFrustum();
 
@@ -76,6 +82,21 @@ inline void Camera::SetRotation(const Quaternion& newRot)
 inline void Camera::SetProjectionData(float projectionData)
 {
 	m_projectionData = projectionData;
+}
+
+inline void Camera::SetAspectRatio(float aspectRatio)
+{
+	m_aspectRatio = aspectRatio;
+}
+
+inline void Camera::SetNear(float near)
+{
+	m_nearZ = near;
+}
+
+inline void Camera::SetFar(float far)
+{
+	m_farZ = far;
 }
 
 inline const Frustum & Camera::GetFrustum() const

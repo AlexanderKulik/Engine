@@ -8,6 +8,12 @@ void AABB::AddPoint(const DirectX::SimpleMath::Vector3& point)
 	m_maxPoint = DirectX::SimpleMath::Vector3(std::max(point.x, m_maxPoint.x), std::max(point.y, m_maxPoint.y), std::max(point.z, m_maxPoint.z));
 }
 
+void AABB::AddAABB(const AABB& aabb)
+{
+	AddPoint(aabb.m_maxPoint);
+	AddPoint(aabb.m_minPoint);
+}
+
 void AABB::GetPoints(DirectX::SimpleMath::Vector3 points[]) const
 {
 	points[0] = m_minPoint;

@@ -40,6 +40,8 @@ Model::Model(ID3D11Device* dev, const std::string& path)
 	bool loadout = loader.LoadFile(path);
 	if (loadout)
 	{
+		AABB modelAABB;
+
 		for (auto&& meshData : loader.LoadedMeshes)
 		{
 			auto&& mesh = std::make_unique<Mesh>();
@@ -99,23 +101,33 @@ Model::Model(ID3D11Device* dev, const std::string& path)
 				mesh->indexCount = static_cast<unsigned>(meshData.Indices.size());
 			}
 
-			auto&& diffuse = meshData.MeshMaterial.map_Kd;
-			if (!diffuse.empty())
-			{
-				mesh->diffuse = Texture::CreateTexture(dev, std::wstring(diffuse.begin(), diffuse.end()));
-			}
-			else
-			{
-				mesh->diffuse = nullptr;
-			}
+			//auto&& diffuse = meshData.MeshMaterial.map_Kd;
+			//if (!diffuse.empty())
+			//{
+			//	mesh->diffuse = Texture::CreateTexture(dev, std::wstring(diffuse.begin(), diffuse.end()));
+			//}
+			//else
+			//{
+			//	mesh->diffuse = nullptr;
+			//}
+
+			modelAABB.AddAABB(meshAabb);
 
 			m_meshes.push_back(std::move(mesh));
 		}
+
+		m_aabb = modelAABB;
 	}
 }
 
 void Model::Render(ID3D11Device* dev, ID3D11DeviceContext* context, const Frustum& frustum, const Material& material)
 {
+	auto&& cullStatus = frustum.CullAABB(GetWorldAABB());
+	if (cullStatus == CullResult::OUTSIDE)
+	{
+		return;
+	}
+
 	for (auto&& mesh : m_meshes)
 	{
 		auto&& cullStatus = frustum.CullAABB(mesh->worldAabb);
@@ -125,11 +137,6 @@ void Model::Render(ID3D11Device* dev, ID3D11DeviceContext* context, const Frustu
 		}
 
 		material.Bind(context);
-
-		if (mesh->diffuse)
-		{
-			mesh->diffuse->Bind(context);
-		}
 
 		auto&& shader = const_cast<Shader*>(material.GetShader());
 
@@ -166,6 +173,18 @@ void Model::SetAllMaterials(const Material& mat)
 void Model::UpdateBoundingVolumes()
 {
 	auto&& transform = GetTransform();
+
+	{
+		std::array<Vector3, 8> localAabbPoints;
+		GetLocalAABB().GetPoints(localAabbPoints.data());
+
+		m_worldAabb = AABB();
+		for (auto&& p : localAabbPoints)
+		{
+			m_worldAabb.AddPoint(Vector3::Transform(p, transform));
+		}
+	}
+
 	for (auto&& mesh : m_meshes)
 	{
 		std::array<Vector3, 8> localAabbPoints;

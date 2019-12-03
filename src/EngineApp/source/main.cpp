@@ -460,7 +460,7 @@ void InitD3D(HWND hWnd)
 		const auto quat = Quaternion::CreateFromRotationMatrix(rotMatrix);
 		g_lightCamera->SetRotation(quat);
 
-		//g_camera = std::make_unique<Camera>(Camera::Orthographic{ 200.0f }, g_camera->GetAspectRatio(), 0.5f, 500.0f);
+		//g_camera = std::make_unique<Camera>(Camera::Orthographic{ 200.0f }, g_lightCamera->GetAspectRatio(), 0.5f, 500.0f);
 		//g_camera->SetPosition(g_lightCamera->GetPosition());
 		//g_camera->SetRotation(g_lightCamera->GetRotation());
 		//
@@ -475,9 +475,12 @@ void InitD3D(HWND hWnd)
 	g_shadowMapShader = std::make_unique<Shader>(dev, L"shaders/shadowmap.hlsl");
 	g_debugPrimitiveShader = std::make_unique<Shader>(dev, L"shaders/primitive.hlsl");
 
-	//g_model = std::make_unique<Model>(dev, "models/Snow covered CottageOBJ.obj");
+	//g_model = std::make_unique<Model>(dev, "models/247_House 15_obj.obj");
+	//g_model = std::make_unique<Model>(dev, "models/Futuristic Apartment.obj");
+	//g_model = std::make_unique<Model>(dev, "models/luxury house interior.obj");
+	g_model = std::make_unique<Model>(dev, "models/Snow covered CottageOBJ.obj");
 	//g_model = std::make_unique<Model>(dev, "models/orb.obj");
-	g_model = std::make_unique<Model>(dev, "models/cube.obj");
+	//g_model = std::make_unique<Model>(dev, "models/cube.obj");
 
 	g_shadowMap = std::make_unique<RenderTarget>(dev, 1024, 1024, std::string(), "D24S8");
 
@@ -488,9 +491,55 @@ void InitD3D(HWND hWnd)
 	shadowMapMaterial = Material(g_shadowMapShader.get());
 	primitiveMaterial = Material(g_debugPrimitiveShader.get());
 
+	auto diffuse = Texture::CreateTexture(dev, L"textures/tmp/AussenWand_C.jpg");
+
 	basicMaterial.SetUniform("fogParams", { 10.0f, 200.0f, 0.0f, 0.0f });
 	basicMaterial.SetUniform("fogColor", { 1.0f, 1.0f, 1.0f, 0.2f });
 	basicMaterial.SetUniform("lightDir", Vector3::Transform(Vector3::Forward, g_lightCamera->GetRotation()));
+	basicMaterial.SetTexture("shaderTexture", diffuse.get());
+	basicMaterial.SetTexture("shadowMapSampler", g_shadowMap->GetDepthTexture());
+
+	{
+		auto&& mdlAabb = g_model->GetLocalAABB();
+		auto&& aabbDiag = mdlAabb.GetMaxPoint() - mdlAabb.GetMinPoint();
+		auto&& camPos = g_model->GetPosition() + aabbDiag;
+		Matrix rotMatrix = Matrix::CreateLookAt(-camPos, g_model->GetPosition(), Vector3::Up);
+		rotMatrix = rotMatrix.Transpose();
+		const auto quat = Quaternion::CreateFromRotationMatrix(rotMatrix);
+		g_camera->SetPosition(camPos);
+		g_camera->SetRotation(quat);
+	}
+
+	{
+		auto&& mdlAabb = g_model->GetLocalAABB();
+		auto&& view = Matrix::CreateLookAt(-g_lightCamera->GetPosition(), Vector3::Zero, Vector3::Up);
+
+		std::array<Vector3, 8> points;
+		mdlAabb.GetPoints(points.data());
+
+		AABB mdlAabbVS;
+		for (size_t i = 0; i < points.size(); i++)
+		{
+			auto pointVS = Vector3::Transform(points[i], view);
+			mdlAabbVS.AddPoint(pointVS);
+		}
+
+		auto extents = mdlAabbVS.GetExtents();
+
+		//g_lightCamera->SetProjectionData(extents.y);
+		//g_lightCamera->SetAspectRatio(extents.x / extents.y);
+
+		//view = view.Transpose();
+		//
+		//std::array<Vector3, 8> pointsWS;
+		//mdlAabbVS.GetPoints(pointsWS.data());
+		//for (size_t i = 0; i < pointsWS.size(); i++)
+		//{
+		//	pointsWS[i] = Vector3::Transform(pointsWS[i], view);	
+		//}
+
+		basicMaterial.SetUniform("shadowMapMatrix", g_lightCamera->GetViewProjectionTransform().Transpose());
+	}
 }
 
 
@@ -632,7 +681,7 @@ void UpdateFrame()
 
 	// apply some animations to model
 	{
-		g_model->SetRotation(g_model->GetRotation() * Quaternion::CreateFromAxisAngle(Vector3::Up, k_frameTime * 0.1f));
+		//g_model->SetRotation(g_model->GetRotation() * Quaternion::CreateFromAxisAngle(Vector3::Up, k_frameTime * 0.1f));
 
 		//auto newScale = g_model->GetScale();
 		//
@@ -740,14 +789,14 @@ void RenderFrame(void)
 
 		// render X axis
 		{
-			Vertex3D vtx0{ { -k_gridSize, 0.0f, 0.0f }, { 1, 0, 0, 0.5 } };
+			Vertex3D vtx0{ { -k_gridSize, 0.0f, 0.0f }, { 0.5, 0, 0, 0.5 } };
 			Vertex3D vtx1{ {  k_gridSize, 0.0f, 0.0f }, { 1, 0, 0, 0.5 } };
 			g_debugDrawer->DrawLine(vtx0, vtx1);
 		}
 
 		// render Z axis
 		{
-			Vertex3D vtx0{ { 0.0f, 0.0f, -k_gridSize }, { 0, 0, 1, 0.5 } };
+			Vertex3D vtx0{ { 0.0f, 0.0f, -k_gridSize }, { 0, 0, 0.5, 0.5 } };
 			Vertex3D vtx1{ { 0.0f, 0.0f,  k_gridSize }, { 0, 0, 1, 0.5 } };
 			g_debugDrawer->DrawLine(vtx0, vtx1);
 		}

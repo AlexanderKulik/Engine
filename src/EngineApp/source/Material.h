@@ -1,6 +1,11 @@
 #pragma once
 
+#include "BlendState.h"
+
 class Shader;
+class Texture;
+
+const unsigned MAX_SAMPLERS = 16;
 
 struct UniformHandle
 {
@@ -28,6 +33,7 @@ public:
 	Material& operator = (Material&& other);
 
 	UniformHandle FindUniformHandle(const std::string& name) const;
+	UniformHandle FindTextureHandle(const std::string& name) const;
 
 	void SetUniform(UniformHandle handle, float value);
 	void SetUniform(UniformHandle handle, const DirectX::SimpleMath::Vector2& value);
@@ -43,10 +49,11 @@ public:
 	void SetUniform(const std::string& name, const DirectX::SimpleMath::Matrix& value);
 	void SetUniform(const std::string& name, float values[], unsigned count);
 
-	void SetTexture(UniformHandle handle, unsigned);
-	void SetTexture(const std::string& name, unsigned);
+	void SetTexture(UniformHandle handle, Texture* texture);
+	void SetTexture(const std::string& name, Texture* texture); 
 
-	void SetBlendState();
+	void SetBlendState(const BlendState& blendState);
+	const BlendState& GetBlendState() const;
 
 	void Reset();
 
@@ -60,6 +67,7 @@ private:
 	const Shader* m_shader;
 	// hash
 	MaterialParamsStorage m_storage;
+	Texture* m_samplers[MAX_SAMPLERS];
 };
 
 inline const Shader* Material::GetShader() const

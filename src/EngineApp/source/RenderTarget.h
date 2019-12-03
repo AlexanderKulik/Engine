@@ -6,6 +6,8 @@ struct ID3D11Texture2D;
 struct ID3D11RenderTargetView;
 struct ID3D11ShaderResourceView;
 
+class Texture;
+
 class RenderTarget
 {
 public:
@@ -16,8 +18,12 @@ public:
 	void												SetClearColor(const DirectX::XMFLOAT4& clearColor);
 	void												SetViewport(const DirectX::SimpleMath::Rectangle& viewport);
 
-	ID3D11ShaderResourceView*							GetColorTexture() const;
-	ID3D11ShaderResourceView*							GetDepthTexture() const;
+	Texture*											GetColorTexture() const;
+	Texture*											GetDepthTexture() const;
+
+	//ID3D11ShaderResourceView*							GetColorTexture() const;
+	//ID3D11ShaderResourceView*							GetDepthTexture() const;
+
 	const DirectX::XMFLOAT4&							GetClearColor() const;
 	const DirectX::SimpleMath::Rectangle&				GetViewport() const;
 	unsigned											GetWidth() const;
@@ -26,11 +32,14 @@ public:
 private:
 	Microsoft::WRL::ComPtr<ID3D11Texture2D>				m_colorBuffer;
 	Microsoft::WRL::ComPtr<ID3D11RenderTargetView>		m_renderTargetView;
-	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>	m_rtShaderResourceView;
+	//Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>	m_rtShaderResourceView;
 
 	Microsoft::WRL::ComPtr<ID3D11Texture2D>				m_depthBuffer;
 	Microsoft::WRL::ComPtr<ID3D11DepthStencilView>		m_depthStencilView;
-	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>	m_dsShaderResourceView;
+	//Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>	m_dsShaderResourceView;
+
+	std::unique_ptr<Texture>							m_colorTexture;
+	std::unique_ptr<Texture>							m_depthTexture;
 
 	DirectX::XMFLOAT4									m_clearColor;
 	DirectX::SimpleMath::Rectangle						m_viewport;
@@ -46,6 +55,17 @@ inline void RenderTarget::SetViewport(const DirectX::SimpleMath::Rectangle& view
 	m_viewport = viewport;
 }
 
+inline Texture* RenderTarget::GetColorTexture() const
+{
+	return m_colorTexture.get();
+}
+
+inline Texture* RenderTarget::GetDepthTexture() const
+{
+	return m_depthTexture.get();
+}
+
+/*
 inline ID3D11ShaderResourceView* RenderTarget::GetColorTexture() const
 {
 	return m_rtShaderResourceView.Get();
@@ -55,6 +75,7 @@ inline ID3D11ShaderResourceView* RenderTarget::GetDepthTexture() const
 {
 	return m_dsShaderResourceView.Get();
 }
+*/
 
 inline const DirectX::XMFLOAT4& RenderTarget::GetClearColor() const
 {

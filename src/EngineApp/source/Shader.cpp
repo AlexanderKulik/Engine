@@ -231,8 +231,22 @@ HRESULT Shader::CreateConstantBufferReflection(ID3DBlob* pShaderBlob, ID3D11Devi
 		m_shaderBuffers.emplace_back(registerIndex, bdesc.Name, buffer, bdesc);
 	}
 
-	// Find all samplers
-	std::unordered_map<std::string, unsigned> samplers;
+	return S_OK;
+}
+
+HRESULT Shader::CreateSamplersReflection(ID3DBlob * pShaderBlob, ID3D11Device * pD3DDevice)
+{
+	// Reflect shader info
+	Microsoft::WRL::ComPtr<ID3D11ShaderReflection> pVertexShaderReflection;
+	if (FAILED(D3DReflect(pShaderBlob->GetBufferPointer(), pShaderBlob->GetBufferSize(), IID_ID3D11ShaderReflection, (void**)&pVertexShaderReflection)))
+	{
+		return S_FALSE;
+	}
+
+	// Get shader info
+	D3D11_SHADER_DESC shaderDesc;
+	pVertexShaderReflection->GetDesc(&shaderDesc);
+
 	for (unsigned int i = 0; i < shaderDesc.BoundResources; ++i)
 	{
 		D3D11_SHADER_INPUT_BIND_DESC shaderInputDesc;
@@ -241,7 +255,7 @@ HRESULT Shader::CreateConstantBufferReflection(ID3DBlob* pShaderBlob, ID3D11Devi
 
 		if (shaderInputDesc.Type == D3D_SHADER_INPUT_TYPE::D3D10_SIT_TEXTURE)
 		{
-			samplers.emplace(shaderInputDesc.Name, shaderInputDesc.BindPoint);
+			m_shaderSamplers.push_back({ shaderInputDesc.Name, shaderInputDesc.BindPoint });
 		}
 	}
 
@@ -314,6 +328,9 @@ Shader::Shader(ID3D11Device* dev, const std::wstring& shaderName)
 	constantBufferDesc.StructureByteStride = 0;
 
 	result = dev->CreateBuffer(&constantBufferDesc, nullptr, m_constantBuffer.GetAddressOf());
+	assert(SUCCEEDED(result));
+
+	result = CreateSamplersReflection(psBlob.Get(), dev);
 	assert(SUCCEEDED(result));
 
 	m_vsBytecode = vsBlob;
@@ -400,15 +417,4 @@ Microsoft::WRL::ComPtr<ID3D11InputLayout> Shader::RequestInputLayout(ID3D11Devic
 	m_inputLayouts.emplace_back(vertexBufferDesc.hash, inputLayout);
 
 	return inputLayout;
-}
-
-BlendState::BlendState(bool enabled, BlendFactor srcColor, BlendFactor dstColor, BlendFactor srcAlpha, BlendFactor dstAlpha, BlendOp op)
-{
-	m_hash = 0;
-	boost::hash_combine(m_hash, enabled);
-	boost::hash_combine(m_hash, srcColor);
-	boost::hash_combine(m_hash, dstColor);
-	boost::hash_combine(m_hash, srcAlpha);
-	boost::hash_combine(m_hash, dstAlpha);
-	boost::hash_combine(m_hash, op);
 }

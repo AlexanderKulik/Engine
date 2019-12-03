@@ -12,39 +12,6 @@ struct _D3D11_SHADER_BUFFER_DESC;
 struct VertexBufferDesc;
 class Material;
 
-class BlendState
-{
-public:
-	enum BlendFactor
-	{
-		ONE,
-		ZERO,
-		SRC_ALPHA,
-		INV_SRC_ALPHA,
-		DST_ALPHA,
-		INV_DEST_ALPHA,
-		SRC_COLOR,
-		INV_SRC_COLOR
-	};
-
-	enum BlendOp
-	{
-		ADD,
-		SUBSTRACT
-	};
-
-	BlendState();
-	BlendState(bool enabled, BlendFactor srcColor, BlendFactor dstColor, BlendFactor srcAlpha, BlendFactor dstAlpha, BlendOp op);
-	BlendState(const BlendState& other);
-
-private:
-	bool m_enabled;
-	BlendFactor m_srcColor, m_dstColor;
-	BlendFactor m_srcAlpha, m_dstAlpha;
-	BlendOp m_op;
-	size_t m_hash;
-};
-
 enum class InputSemantic
 {
 	POSITION	= 1 << 0,
@@ -101,6 +68,11 @@ class Shader
 		std::vector<ShaderVariable> mVariables;
 	};
 
+	struct ShaderSampler
+	{
+		std::string name;
+		unsigned slot;
+	};
 
 public:
 	Shader(ID3D11Device* dev, const std::wstring& shaderName);
@@ -110,6 +82,7 @@ public:
 private:
 	void										Bind(ID3D11DeviceContext* devcon) const;
 	HRESULT										CreateConstantBufferReflection(ID3DBlob* pShaderBlob, ID3D11Device* pD3DDevice);
+	HRESULT										CreateSamplersReflection(ID3DBlob* pShaderBlob, ID3D11Device* pD3DDevice);
 
 private:
 	using InputLayoutsCache = std::vector<std::pair<size_t, Microsoft::WRL::ComPtr<ID3D11InputLayout>>>;
@@ -121,4 +94,5 @@ private:
 	
 	InputLayoutsCache							m_inputLayouts;
 	std::vector<ConstantShaderBuffer>			m_shaderBuffers;
+	std::vector<ShaderSampler>					m_shaderSamplers;
 };

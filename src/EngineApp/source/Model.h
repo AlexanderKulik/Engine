@@ -42,7 +42,6 @@ public:
 		unsigned int							vertexCount;
 		unsigned int							indexCount;
 
-		std::shared_ptr<Texture>				diffuse;
 		Material								material;
 
 		AABB									localAabb;
@@ -65,6 +64,9 @@ public:
 	const Quaternion&					GetRotation() const;
 	const Vector3&						GetScale() const;
 
+	const AABB&							GetLocalAABB() const;
+	const AABB&							GetWorldAABB() const;
+
 	void								SetPosition(const Vector3& position);
 	void								SetRotation(const Quaternion& rotation);
 	void								SetScale(const Vector3& scale);
@@ -74,6 +76,8 @@ private:
 	Quaternion							m_rotation;
 	Vector3								m_scale;
 	std::vector<std::unique_ptr<Mesh>>	m_meshes;
+	AABB								m_aabb;
+	AABB								m_worldAabb;
 };
 
 inline size_t Model::GetMeshCount() const
@@ -100,6 +104,16 @@ inline const DirectX::SimpleMath::Quaternion& Model::GetRotation() const
 inline const DirectX::SimpleMath::Vector3& Model::GetScale() const
 {
 	return m_scale;
+}
+
+inline const AABB & Model::GetLocalAABB() const
+{
+	return m_aabb;
+}
+
+inline const AABB & Model::GetWorldAABB() const
+{
+	return m_worldAabb;
 }
 
 inline void Model::SetPosition(const DirectX::SimpleMath::Vector3& position)

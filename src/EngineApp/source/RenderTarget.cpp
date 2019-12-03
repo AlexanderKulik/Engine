@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "RenderTarget.h"
+#include "Texture.h"
 
 RenderTarget::RenderTarget(ID3D11Device* dev, unsigned width, unsigned height, const std::string& rtFormat, const std::string& dsFormat)
 	: m_clearColor(0.0f, 0.0f, 0.0f, 0.0f)
@@ -52,8 +53,11 @@ RenderTarget::RenderTarget(ID3D11Device* dev, unsigned width, unsigned height, c
 			shaderResourceViewDesc.Texture2D.MipLevels = 1;
 			shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
 
-			auto&& result = dev->CreateShaderResourceView(m_colorBuffer.Get(), &shaderResourceViewDesc, m_rtShaderResourceView.GetAddressOf());
+			Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shaderResourceView;
+			auto&& result = dev->CreateShaderResourceView(m_colorBuffer.Get(), &shaderResourceViewDesc, shaderResourceView.GetAddressOf());
 			assert(SUCCEEDED(result));
+
+			m_colorTexture = std::make_unique<Texture>(dev, shaderResourceView);
 		}
 	}
 
@@ -106,8 +110,11 @@ RenderTarget::RenderTarget(ID3D11Device* dev, unsigned width, unsigned height, c
 			shaderResourceViewDesc.Texture2D.MipLevels = 1;
 			shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
 
-			auto&& result = dev->CreateShaderResourceView(m_depthBuffer.Get(), &shaderResourceViewDesc, m_dsShaderResourceView.GetAddressOf());
+			Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shaderResourceView;
+			auto&& result = dev->CreateShaderResourceView(m_depthBuffer.Get(), &shaderResourceViewDesc, shaderResourceView.GetAddressOf());
 			assert(SUCCEEDED(result));
+
+			m_depthTexture = std::make_unique<Texture>(dev, shaderResourceView);
 		}
 	}	
 }

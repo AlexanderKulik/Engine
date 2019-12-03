@@ -12,6 +12,7 @@ public:
 	{}
 
 	void								AddPoint(const DirectX::SimpleMath::Vector3& point);
+	void								AddAABB(const AABB& aabb);
 
 	const DirectX::SimpleMath::Vector3& GetMinPoint() const;
 	const DirectX::SimpleMath::Vector3& GetMaxPoint() const;
