@@ -115,6 +115,7 @@ RenderTarget::RenderTarget(ID3D11Device* dev, unsigned width, unsigned height, c
 			assert(SUCCEEDED(result));
 
 			m_depthTexture = std::make_unique<Texture>(dev, shaderResourceView);
+			m_depthTexture->SetTextureFilter(TextureFilter::POINT);
 		}
 	}	
 }

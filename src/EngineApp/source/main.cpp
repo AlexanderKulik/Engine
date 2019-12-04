@@ -476,9 +476,9 @@ void InitD3D(HWND hWnd)
 	g_debugPrimitiveShader = std::make_unique<Shader>(dev, L"shaders/primitive.hlsl");
 
 	//g_model = std::make_unique<Model>(dev, "models/247_House 15_obj.obj");
-	//g_model = std::make_unique<Model>(dev, "models/Futuristic Apartment.obj");
+	g_model = std::make_unique<Model>(dev, "models/Futuristic Apartment.obj");
 	//g_model = std::make_unique<Model>(dev, "models/luxury house interior.obj");
-	g_model = std::make_unique<Model>(dev, "models/Snow covered CottageOBJ.obj");
+	//g_model = std::make_unique<Model>(dev, "models/Snow covered CottageOBJ.obj");
 	//g_model = std::make_unique<Model>(dev, "models/orb.obj");
 	//g_model = std::make_unique<Model>(dev, "models/cube.obj");
 
@@ -526,17 +526,22 @@ void InitD3D(HWND hWnd)
 
 		auto extents = mdlAabbVS.GetExtents();
 
-		//g_lightCamera->SetProjectionData(extents.y);
-		//g_lightCamera->SetAspectRatio(extents.x / extents.y);
+		view = view.Invert();
 
-		//view = view.Transpose();
-		//
-		//std::array<Vector3, 8> pointsWS;
-		//mdlAabbVS.GetPoints(pointsWS.data());
-		//for (size_t i = 0; i < pointsWS.size(); i++)
-		//{
-		//	pointsWS[i] = Vector3::Transform(pointsWS[i], view);	
-		//}
+		std::array<Vector3, 8> pointsWS;
+		mdlAabbVS.GetPoints(pointsWS.data());
+		for (size_t i = 0; i < pointsWS.size(); i++)
+		{
+			pointsWS[i] = Vector3::Transform(pointsWS[i], view);
+		}
+
+		auto cameraPos = pointsWS[0] + view.Right() * extents.x * 0.5f + view.Up() * extents.y * 0.5f;
+
+		g_lightCamera->SetProjectionData(extents.y);
+		g_lightCamera->SetAspectRatio(extents.x / extents.y);
+		g_lightCamera->SetNear(0.0f);
+		g_lightCamera->SetFar(extents.z);
+		g_lightCamera->SetPosition(cameraPos);
 
 		basicMaterial.SetUniform("shadowMapMatrix", g_lightCamera->GetViewProjectionTransform().Transpose());
 	}
@@ -779,7 +784,7 @@ void RenderFrame(void)
 	vertexBufferDesc.AddInput(InputSemantic::COLOR, InputType::R32G32B32A32_FLOAT);
 
 	devcon->IASetInputLayout(g_debugPrimitiveShader->RequestInputLayout(dev, vertexBufferDesc).Get());
-	primitiveMaterial.Bind(devcon);
+	primitiveMaterial.Bind(dev, devcon);
 	g_debugDrawer->Begin();
 
 	// render grid
@@ -825,6 +830,7 @@ void RenderFrame(void)
 		}
 	}
 
+	// render bounding boxes
 	{
 		const auto meshCount = g_model->GetMeshCount();
 		for (auto i = 0; i < meshCount; i++)
@@ -862,6 +868,36 @@ void RenderFrame(void)
 			g_debugDrawer->DrawLine(vtx3, vtx7);
 		}
 	}
+
+	// render shadow map frustum
+	//{
+	//	const Vector4 clr = { 1, 0, 1, 1.0f };
+	//	auto frustumPoints = g_lightCamera->GetFrustum().GetFrumstumPoints();
+	//
+	//	Vertex3D vtx0{ frustumPoints[0],clr };
+	//	Vertex3D vtx1{ frustumPoints[1],clr };
+	//	Vertex3D vtx2{ frustumPoints[2],clr };
+	//	Vertex3D vtx3{ frustumPoints[3],clr };
+	//	Vertex3D vtx4{ frustumPoints[4],clr };
+	//	Vertex3D vtx5{ frustumPoints[5],clr };
+	//	Vertex3D vtx6{ frustumPoints[6],clr };
+	//	Vertex3D vtx7{ frustumPoints[7],clr };
+	//
+	//	g_debugDrawer->DrawLine(vtx0, vtx1);
+	//	g_debugDrawer->DrawLine(vtx1, vtx2);
+	//	g_debugDrawer->DrawLine(vtx2, vtx3);
+	//	g_debugDrawer->DrawLine(vtx3, vtx0);
+	//
+	//	g_debugDrawer->DrawLine(vtx4, vtx5);
+	//	g_debugDrawer->DrawLine(vtx5, vtx6);
+	//	g_debugDrawer->DrawLine(vtx6, vtx7);
+	//	g_debugDrawer->DrawLine(vtx7, vtx4);
+	//
+	//	g_debugDrawer->DrawLine(vtx0, vtx4);
+	//	g_debugDrawer->DrawLine(vtx1, vtx5);
+	//	g_debugDrawer->DrawLine(vtx2, vtx6);
+	//	g_debugDrawer->DrawLine(vtx3, vtx7);
+	//}
 
 	g_debugDrawer->End();
 

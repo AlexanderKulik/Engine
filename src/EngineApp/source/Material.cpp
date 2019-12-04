@@ -270,28 +270,28 @@ void Material::Reset()
 	assert(false);
 }
 
-void Material::Bind(ID3D11DeviceContext* devcon) const
+void Material::Bind(ID3D11Device* device, ID3D11DeviceContext* context) const
 {
 	if (m_shader)
 	{
-		m_shader->Bind(devcon);
+		m_shader->Bind(context);
 
 		auto&& constantBuffer = m_shader->m_shaderBuffers[0];
 		auto&& size = constantBuffer.mSize;
 
 		D3D11_MAPPED_SUBRESOURCE ms;
-		auto result = devcon->Map(m_shader->m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
+		auto result = context->Map(m_shader->m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
 		assert(SUCCEEDED(result));
 
 		memcpy(ms.pData, m_storage.mem, size);
 
-		devcon->Unmap(m_shader->m_constantBuffer.Get(), 0);
+		context->Unmap(m_shader->m_constantBuffer.Get(), 0);
 
 		for (unsigned i = 0; i < MAX_SAMPLERS; i++)
 		{
 			if (m_samplers[i])
 			{
-				m_samplers[i]->Bind(devcon, i);
+				m_samplers[i]->Bind(device, context, i);
 			}
 		}
 	}

@@ -136,7 +136,7 @@ void Model::Render(ID3D11Device* dev, ID3D11DeviceContext* context, const Frustu
 			continue;
 		}
 
-		material.Bind(context);
+		material.Bind(dev, context);
 
 		auto&& shader = const_cast<Shader*>(material.GetShader());
 

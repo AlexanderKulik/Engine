@@ -21,7 +21,7 @@ Camera::Matrix Camera::GetProjectionTransform() const
 	}
 	else
 	{
-		return DirectX::XMMatrixOrthographicLH(m_projectionData, m_projectionData * m_aspectRatio, m_nearZ, m_farZ);
+		return DirectX::XMMatrixOrthographicLH(m_projectionData * m_aspectRatio, m_projectionData, m_nearZ, m_farZ);
 	}
 }
 

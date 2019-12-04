@@ -65,13 +65,12 @@ float4 PShader(PixelInputType input) : SV_TARGET
 			shadow = 0.0;
 		}
 	}
-	float2 coords = shadowMapCoords.xy * float2(0.5, 0.5) + float2(0.5, 0.5);
-	
-	float4 textureColor = shaderTexture.Sample(SampleType, input.uv);
+
+	float4 textureColor = float4(1, 1, 1, 1); // shaderTexture.Sample(SampleType, input.uv);
 
 	output.rgb = textureColor * (input.NdotL * shadow * 0.8 + 0.2);
 
-	output.rgb = lerp(output.rgb, fogColor.rgb, input.fogFactor * fogColor.a * 0.0);
+	output.rgb = lerp(output.rgb, fogColor.rgb, input.fogFactor * fogColor.a);
 
 	return float4(output, 1);
 }

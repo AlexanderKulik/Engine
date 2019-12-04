@@ -70,6 +70,17 @@ void Frustum::UpdatePlanes(const DirectX::SimpleMath::Matrix& proj)
 		plane /= length;
 	}
 
+	auto projInv = proj.Invert();
+	m_frustumPoints[0] = Vector3::Transform({ -1.0, -1.0f, 0.0 }, projInv);
+	m_frustumPoints[1] = Vector3::Transform({ -1.0,  1.0f, 0.0 }, projInv);
+	m_frustumPoints[2] = Vector3::Transform({  1.0,  1.0f, 0.0 }, projInv);
+	m_frustumPoints[3] = Vector3::Transform({  1.0, -1.0f, 0.0 }, projInv);
+	m_frustumPoints[4] = Vector3::Transform({ -1.0, -1.0f, 1.0 }, projInv);
+	m_frustumPoints[5] = Vector3::Transform({ -1.0,  1.0f, 1.0 }, projInv);
+	m_frustumPoints[6] = Vector3::Transform({  1.0,  1.0f, 1.0 }, projInv);
+	m_frustumPoints[7] = Vector3::Transform({  1.0, -1.0f, 1.0 }, projInv);
+
+
 }
 
 CullResult Frustum::CullSphere(const Vector3& pos, float radius) const

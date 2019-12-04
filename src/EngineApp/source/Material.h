@@ -61,7 +61,7 @@ public:
 	size_t GetHash() const;
 	bool IsValid() const;
 
-	void Bind(ID3D11DeviceContext* devcon) const;
+	void Bind(ID3D11Device* device, ID3D11DeviceContext* context) const;
 
 private:
 	const Shader* m_shader;

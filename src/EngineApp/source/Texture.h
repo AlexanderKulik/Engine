@@ -29,30 +29,34 @@ struct TextureFormat
 	};
 };
 
-struct TextureFilter
+enum class TextureFilter
 {
-	enum
-	{
-		NEAREST,
-		BILINEAR,
-		TRILINEAR,
-	};
+	POINT,
+	BILINEAR,
+	TRILINEAR,
 };
 
-struct WrapMode
+enum class WrapMode
 {
-	enum
-	{
-		CLAMP_TO_EDGE,
-		REPEAT,
-		MIRROR,
-		MIRROR_ONCE,
-		BORDER,
-	};
+	CLAMP_TO_EDGE,
+	REPEAT,
+	MIRROR,
+	BORDER,
+};
+
+struct SamplerStateDesc
+{
+	TextureFilter filter = TextureFilter::BILINEAR;
+	WrapMode wrapU = WrapMode::CLAMP_TO_EDGE;
+	WrapMode wrapV = WrapMode::CLAMP_TO_EDGE;
+	WrapMode wrapW = WrapMode::CLAMP_TO_EDGE;
+	unsigned aniso = 1;
 };
 
 class Texture
 {
+	
+
 public:
 	static std::shared_ptr<Texture>						CreateTexture(ID3D11Device* dev, const std::wstring& textureName);
 	static void											ClearUnreferenced();
@@ -61,7 +65,7 @@ public:
 	Texture(ID3D11Device* dev, const std::wstring& textureName);
 	Texture(ID3D11Device* dev, Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shaderResourceView);
 
-	void												Bind(ID3D11DeviceContext* devcon, unsigned bindSlot);
+	void												Bind(ID3D11Device* device, ID3D11DeviceContext* context, unsigned bindSlot);
 
 	void												SetAnisoLevel(unsigned anisoLevel);
 	void												SetTextureFilter(TextureFilter filter);
@@ -83,9 +87,13 @@ public:
 
 private:
 	using TextureCache = std::unordered_map<std::wstring, std::shared_ptr<Texture>>;
+	using SamplerStatesCache = std::vector < std::pair<SamplerStateDesc, Microsoft::WRL::ComPtr<ID3D11SamplerState>>>;
+
 	static TextureCache									s_textureCache;
+	static SamplerStatesCache							s_samplerStatesCache;
 
 private:
-	Microsoft::WRL::ComPtr<ID3D11SamplerState>			m_samplerState;
+	//Microsoft::WRL::ComPtr<ID3D11SamplerState>			m_samplerState;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>	m_texture;
+	SamplerStateDesc									m_samplerState;
 };
