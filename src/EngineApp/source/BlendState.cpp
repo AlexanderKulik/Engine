@@ -5,12 +5,12 @@
 #include "BlendState.h"
 
 BlendState::BlendState()
-	//: m_enabled(false)
-	//, m_srcColor(BlendFactor::ONE)
-	//, m_srcAlpha(BlendFactor::ONE)
-	//, m_dstColor(BlendFactor::ZERO)
-	//, m_dstAlpha(BlendFactor::ZERO)
-	//, m_op(BlendOp::ADD)
+	: enabled(false)
+	, srcColor(BlendFactor::ONE)
+	, srcAlpha(BlendFactor::ONE)
+	, dstColor(BlendFactor::ZERO)
+	, dstAlpha(BlendFactor::ZERO)
+	, op(BlendOp::ADD)
 	//, m_hash(0)
 {
 	//boost::hash_combine(m_hash, m_enabled);
@@ -22,13 +22,13 @@ BlendState::BlendState()
 }
 
 BlendState::BlendState(bool enabled, BlendFactor srcColor, BlendFactor dstColor, BlendFactor srcAlpha, BlendFactor dstAlpha, BlendOp op)
-	: m_enabled(enabled)
-	, m_srcColor(srcColor)
-	, m_srcAlpha(srcAlpha)
-	, m_dstColor(dstColor)
-	, m_dstAlpha(dstAlpha)
-	, m_op(op)
-	, m_hash(0)
+	: enabled(enabled)
+	, srcColor(srcColor)
+	, srcAlpha(srcAlpha)
+	, dstColor(dstColor)
+	, dstAlpha(dstAlpha)
+	, op(op)
+	//, m_hash(0)
 {
 	//boost::hash_combine(m_hash, m_enabled);
 	//boost::hash_combine(m_hash, m_srcColor);
@@ -39,13 +39,13 @@ BlendState::BlendState(bool enabled, BlendFactor srcColor, BlendFactor dstColor,
 }
 
 BlendState::BlendState(bool enabled, BlendFactor srcFactor, BlendFactor dstFactor, BlendOp op)
-	: m_enabled(enabled)
-	, m_srcColor(srcFactor)
-	, m_srcAlpha(srcFactor)
-	, m_dstColor(dstFactor)
-	, m_dstAlpha(dstFactor)
-	, m_op(op)
-	, m_hash(0)
+	: enabled(enabled)
+	, srcColor(srcFactor)
+	, srcAlpha(srcFactor)
+	, dstColor(dstFactor)
+	, dstAlpha(dstFactor)
+	, op(op)
+	//, m_hash(0)
 {
 	//boost::hash_combine(m_hash, m_enabled);
 	//boost::hash_combine(m_hash, m_srcColor);
@@ -56,11 +56,11 @@ BlendState::BlendState(bool enabled, BlendFactor srcFactor, BlendFactor dstFacto
 }
 
 BlendState::BlendState(const BlendState& other) 
-	: m_enabled(other.m_enabled)
-	, m_srcColor(other.m_srcColor)
-	, m_srcAlpha(other.m_srcAlpha)
-	, m_dstColor(other.m_dstColor)
-	, m_dstAlpha(other.m_dstAlpha)
-	, m_op(other.m_op)
-	, m_hash(other.m_hash)
+	: enabled(other.enabled)
+	, srcColor(other.srcColor)
+	, srcAlpha(other.srcAlpha)
+	, dstColor(other.dstColor)
+	, dstAlpha(other.dstAlpha)
+	, op(other.op)
+	//, m_hash(other.m_hash)
 {}

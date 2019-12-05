@@ -44,11 +44,7 @@ ID3D11DeviceContext *devcon;           // the pointer to our Direct3D device con
 ID3D11RenderTargetView *backbuffer;    // the pointer to our back buffer
 ID3D11Texture2D* m_depthStencilBuffer;
 ID3D11DepthStencilView *pDepthStencilView;
-ID3D11DepthStencilState* m_depthStencilState;
 
-Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_noDepthRW;
-Microsoft::WRL::ComPtr<ID3D11BlendState> m_blendStateDefault;
-Microsoft::WRL::ComPtr<ID3D11BlendState> m_blendStateTransp;
 Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_rasterState;
 
 std::unique_ptr<DirectX::Keyboard> g_keyboard;
@@ -286,105 +282,6 @@ void InitD3D(HWND hWnd)
 	result = dev->CreateTexture2D(&depthBufferDesc, NULL, &m_depthStencilBuffer);
 	assert(SUCCEEDED(result));
 
-	// create default depth stencil state
-	{
-		D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
-
-		// Initialize the description of the stencil state.
-		ZeroMemory(&depthStencilDesc, sizeof(depthStencilDesc));
-
-		// Set up the description of the stencil state.
-		depthStencilDesc.DepthEnable = true;
-		depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-		depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS;
-
-		depthStencilDesc.StencilEnable = false;
-		depthStencilDesc.StencilReadMask = 0xFF;
-		depthStencilDesc.StencilWriteMask = 0xFF;
-
-		// Stencil operations if pixel is front-facing.
-		depthStencilDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-		depthStencilDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
-		depthStencilDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-		depthStencilDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-
-		// Stencil operations if pixel is back-facing.
-		depthStencilDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-		depthStencilDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
-		depthStencilDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-		depthStencilDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-
-		// Create the depth stencil state.
-		result = dev->CreateDepthStencilState(&depthStencilDesc, &m_depthStencilState);
-		assert(SUCCEEDED(result));
-	}
-
-	// create depth stencil state for debug primitives
-	{
-		D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
-
-		// Initialize the description of the stencil state.
-		ZeroMemory(&depthStencilDesc, sizeof(depthStencilDesc));
-
-		// Set up the description of the stencil state.
-		depthStencilDesc.DepthEnable = false;
-		depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-		depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS;
-
-		depthStencilDesc.StencilEnable = false;
-		depthStencilDesc.StencilReadMask = 0xFF;
-		depthStencilDesc.StencilWriteMask = 0xFF;
-
-		// Stencil operations if pixel is front-facing.
-		depthStencilDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-		depthStencilDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
-		depthStencilDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-		depthStencilDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-
-		// Stencil operations if pixel is back-facing.
-		depthStencilDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-		depthStencilDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
-		depthStencilDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-		depthStencilDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-
-		// Create the depth stencil state.
-		result = dev->CreateDepthStencilState(&depthStencilDesc, m_noDepthRW.GetAddressOf());
-		assert(SUCCEEDED(result));
-	}
-
-	{
-		CD3D11_BLEND_DESC blendDesc{ D3D11_DEFAULT };
-		
-		result = dev->CreateBlendState(&blendDesc, m_blendStateDefault.GetAddressOf());
-		assert(SUCCEEDED(result));
-	}
-
-	{
-		CD3D11_BLEND_DESC blendDesc{ D3D11_DEFAULT };
-
-		//BOOL BlendEnable;
-		//D3D11_BLEND SrcBlend;
-		//D3D11_BLEND DestBlend;
-		//D3D11_BLEND_OP BlendOp;
-		//D3D11_BLEND SrcBlendAlpha;
-		//D3D11_BLEND DestBlendAlpha;
-		//D3D11_BLEND_OP BlendOpAlpha;
-		//UINT8 RenderTargetWriteMask;
-
-		const D3D11_RENDER_TARGET_BLEND_DESC renderTargetBlendDesc =
-		{
-			TRUE,
-			D3D11_BLEND_SRC_ALPHA, D3D11_BLEND_INV_SRC_ALPHA, D3D11_BLEND_OP_ADD,
-			D3D11_BLEND_SRC_ALPHA, D3D11_BLEND_INV_SRC_ALPHA, D3D11_BLEND_OP_ADD,
-			D3D11_COLOR_WRITE_ENABLE_ALL,
-		};
-		for (UINT i = 0; i < D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
-			blendDesc.RenderTarget[i] = renderTargetBlendDesc;
-
-		result = dev->CreateBlendState(&blendDesc, m_blendStateTransp.GetAddressOf());
-		assert(SUCCEEDED(result));
-	}
-
 	D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc;
 	// Initailze the depth stencil view.
 	ZeroMemory(&depthStencilViewDesc, sizeof(depthStencilViewDesc));
@@ -476,9 +373,9 @@ void InitD3D(HWND hWnd)
 	g_debugPrimitiveShader = std::make_unique<Shader>(dev, L"shaders/primitive.hlsl");
 
 	//g_model = std::make_unique<Model>(dev, "models/247_House 15_obj.obj");
-	g_model = std::make_unique<Model>(dev, "models/Futuristic Apartment.obj");
+	//g_model = std::make_unique<Model>(dev, "models/Futuristic Apartment.obj");
 	//g_model = std::make_unique<Model>(dev, "models/luxury house interior.obj");
-	//g_model = std::make_unique<Model>(dev, "models/Snow covered CottageOBJ.obj");
+	g_model = std::make_unique<Model>(dev, "models/Snow covered CottageOBJ.obj");
 	//g_model = std::make_unique<Model>(dev, "models/orb.obj");
 	//g_model = std::make_unique<Model>(dev, "models/cube.obj");
 
@@ -498,6 +395,10 @@ void InitD3D(HWND hWnd)
 	basicMaterial.SetUniform("lightDir", Vector3::Transform(Vector3::Forward, g_lightCamera->GetRotation()));
 	basicMaterial.SetTexture("shaderTexture", diffuse.get());
 	basicMaterial.SetTexture("shadowMapSampler", g_shadowMap->GetDepthTexture());
+
+	primitiveMaterial.SetBlendState({ true, BlendFactor::SRC_ALPHA, BlendFactor::INV_SRC_ALPHA, BlendOp::ADD });
+	primitiveMaterial.SetDepthTest(false);
+	primitiveMaterial.SetDepthWrite(false);
 
 	{
 		auto&& mdlAabb = g_model->GetLocalAABB();
@@ -720,10 +621,6 @@ void RenderFrame(void)
 	// set raster state
 	devcon->RSSetState(m_rasterState.Get());
 
-	// Set the depth stencil state.
-	devcon->OMSetDepthStencilState(m_depthStencilState, 1);
-	devcon->OMSetBlendState(m_blendStateDefault.Get(), nullptr, 0xFFFFFFFF);
-
 	// render to shadow map
 	{
 		shadowMapMaterial.SetUniform("worldViewProj", (g_model->GetTransform() * g_lightCamera->GetViewProjectionTransform()).Transpose());
@@ -770,10 +667,6 @@ void RenderFrame(void)
 
 	}
 	/////////////////////////////////////////  debug layer
-
-	// Set the depth stencil state.
-	//devcon->OMSetDepthStencilState(m_noDepthRW.Get(), 1);
-	devcon->OMSetBlendState(m_blendStateTransp.Get(), nullptr, 0xFFFFFFFF);
 
 	{
 		primitiveMaterial.SetUniform("worldViewProj", (g_camera->GetViewProjectionTransform()).Transpose());
@@ -910,10 +803,8 @@ void RenderFrame(void)
 void CleanD3D(void)
 {
 	m_rasterState.Reset();
-	m_noDepthRW.Reset();
-	m_blendStateTransp.Reset();
-	m_blendStateDefault.Reset();
 
+	Material::CleanCaches();
 	Texture::ClearUnreferenced();
 
 	g_debugDrawer.reset();
@@ -934,7 +825,6 @@ void CleanD3D(void)
 	swapchain->Release();
 	backbuffer->Release();
 	m_depthStencilBuffer->Release();
-	m_depthStencilState->Release();
 	pDepthStencilView->Release();
 	dev->Release();
 	devcon->Release();

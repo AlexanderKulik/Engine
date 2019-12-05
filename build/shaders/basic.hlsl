@@ -34,7 +34,7 @@ PixelInputType VShader(VertexInputType input)
 	float4 positionVS = mul(float4(input.position, 1), view);
 
     output.position = mul(float4(input.position, 1), worldViewProj);
-	output.shadowMapSpace = mul(float4(input.position, 1), shadowMapMatrix);
+	output.shadowMapSpace = mul(float4(input.position, 1), mul(world, shadowMapMatrix));
 	output.normal = normalWS.xyz;
 	output.uv = input.uv;
 	output.fogFactor = saturate( (positionVS.z - fogParams.x)/(fogParams.y - fogParams.x) );

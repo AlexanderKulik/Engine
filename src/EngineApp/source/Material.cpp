@@ -4,6 +4,88 @@
 #include "Shader.h"
 #include "Texture.h"
 
+bool operator == (const BlendState& lhs, const BlendState& rhs)
+{
+	return lhs.enabled == rhs.enabled
+		&& lhs.srcColor == rhs.srcColor
+		&& lhs.dstColor == rhs.dstColor
+		&& lhs.srcAlpha == rhs.srcAlpha
+		&& lhs.dstAlpha == rhs.dstAlpha
+		&& lhs.op == rhs.op;
+}
+
+bool operator == (const DepthStencilState& lhs, const DepthStencilState& rhs)
+{
+	return  lhs.depthTest == rhs.depthTest
+		&& lhs.depthWrite == rhs.depthWrite
+		&& lhs.stencilTest == rhs.stencilTest
+		&& lhs.stencilReadMask == rhs.stencilReadMask
+		&& lhs.stencilWriteMask == rhs.stencilWriteMask
+		&& lhs.frontFaceStencilFailOp == rhs.frontFaceStencilFailOp
+		&& lhs.frontFaceStencilDepthFailOp == rhs.frontFaceStencilDepthFailOp
+		&& lhs.frontFaceStencilPassOp == rhs.frontFaceStencilPassOp
+		&& lhs.backFaceStencilFailOp == rhs.backFaceStencilFailOp
+		&& lhs.backFaceStencilDepthFailOp == rhs.backFaceStencilDepthFailOp
+		&& lhs.backFaceStencilPassOp == rhs.backFaceStencilPassOp
+		&& lhs.frontFaceStencilFunc == rhs.frontFaceStencilFunc
+		&& lhs.backFaceStencilFunc == rhs.backFaceStencilFunc;
+}
+
+std::vector<std::pair<BlendState, Microsoft::WRL::ComPtr<ID3D11BlendState>>> Material::s_blendStatesCache;
+std::vector<std::pair<DepthStencilState, Microsoft::WRL::ComPtr<ID3D11DepthStencilState>>> Material::s_depthStencilStatesCache;
+
+void Material::CleanCaches()
+{
+	s_blendStatesCache.clear();
+	s_depthStencilStatesCache.clear();
+}
+
+D3D11_BLEND g_blendTable[] =
+{
+	D3D11_BLEND_ZERO,
+	D3D11_BLEND_ONE,
+	D3D11_BLEND_SRC_COLOR,
+	D3D11_BLEND_INV_SRC_COLOR,
+	D3D11_BLEND_SRC_ALPHA,
+	D3D11_BLEND_INV_SRC_ALPHA,
+	D3D11_BLEND_DEST_ALPHA,
+	D3D11_BLEND_INV_DEST_ALPHA,
+	D3D11_BLEND_DEST_COLOR,
+	D3D11_BLEND_INV_DEST_COLOR,
+};
+
+D3D11_BLEND_OP g_blendOpTable[] =
+{
+	D3D11_BLEND_OP_ADD,
+	D3D11_BLEND_OP_SUBTRACT,
+};
+
+D3D11_COMPARISON_FUNC g_comparsionFuncTable[] = 
+{
+	D3D11_COMPARISON_NEVER,
+	D3D11_COMPARISON_LESS,
+	D3D11_COMPARISON_EQUAL,
+	D3D11_COMPARISON_LESS_EQUAL,
+	D3D11_COMPARISON_GREATER,
+	D3D11_COMPARISON_NOT_EQUAL,
+	D3D11_COMPARISON_GREATER_EQUAL,
+	D3D11_COMPARISON_ALWAYS,
+};
+
+D3D11_STENCIL_OP g_stencilOpTable[] = 
+{
+	D3D11_STENCIL_OP_KEEP,
+	D3D11_STENCIL_OP_ZERO,
+	D3D11_STENCIL_OP_REPLACE,
+	D3D11_STENCIL_OP_INCR_SAT,
+	D3D11_STENCIL_OP_DECR_SAT,
+	D3D11_STENCIL_OP_INVERT,
+	D3D11_STENCIL_OP_INCR,
+	D3D11_STENCIL_OP_DECR,
+};
+
+/////////////////////////////////
+
 Material::Material()
 {
 }
@@ -265,6 +347,49 @@ void Material::SetTexture(const std::string& name, Texture* texture)
 	}
 }
 
+void Material::SetBlendState(const BlendState & blendState)
+{
+	m_blendState = blendState;
+}
+
+void Material::SetDepthTest(bool yes)
+{
+	m_depthStencilState.depthTest = yes;
+}
+
+void Material::SetDepthWrite(bool yes)
+{
+	m_depthStencilState.depthWrite = yes;
+}
+
+void Material::SetStencilTest(bool yes)
+{
+	m_depthStencilState.stencilTest = yes;
+}
+
+void Material::SetStencilMask(unsigned char readMask, unsigned char writeMask, unsigned char ref)
+{
+	m_depthStencilState.stencilReadMask = readMask;
+	m_depthStencilState.stencilWriteMask = writeMask;
+	m_depthStencilState.stencilRef = ref;
+}
+
+void Material::SetStencilFrontFace(StencilOp fail, StencilOp zfail, StencilOp pass, ComparsionFunc func)
+{
+	m_depthStencilState.frontFaceStencilFailOp = fail;
+	m_depthStencilState.frontFaceStencilDepthFailOp = zfail;
+	m_depthStencilState.frontFaceStencilPassOp = pass;
+	m_depthStencilState.frontFaceStencilFunc = func;
+}
+
+void Material::SetStencilBackFace(StencilOp fail, StencilOp zfail, StencilOp pass, ComparsionFunc func)
+{
+	m_depthStencilState.backFaceStencilFailOp = fail;
+	m_depthStencilState.backFaceStencilDepthFailOp = zfail;
+	m_depthStencilState.backFaceStencilPassOp = pass;
+	m_depthStencilState.backFaceStencilFunc = func;
+}
+
 void Material::Reset()
 {
 	assert(false);
@@ -293,6 +418,101 @@ void Material::Bind(ID3D11Device* device, ID3D11DeviceContext* context) const
 			{
 				m_samplers[i]->Bind(device, context, i);
 			}
+		}
+
+		// bind blend state
+		{
+			auto blendStateIt = std::find_if(s_blendStatesCache.begin(), s_blendStatesCache.end(), [this](auto&& val)
+			{
+				return val.first == m_blendState;
+			});
+
+			Microsoft::WRL::ComPtr<ID3D11BlendState> blendState;
+			if (blendStateIt == s_blendStatesCache.end())
+			{
+				CD3D11_BLEND_DESC blendDesc{ D3D11_DEFAULT };
+
+				const D3D11_RENDER_TARGET_BLEND_DESC renderTargetBlendDesc =
+				{
+					m_blendState.enabled,
+
+					g_blendTable[static_cast<unsigned>(m_blendState.srcColor)],
+					g_blendTable[static_cast<unsigned>(m_blendState.dstColor)],
+					g_blendOpTable[static_cast<unsigned>(m_blendState.op)],
+
+					g_blendTable[static_cast<unsigned>(m_blendState.srcAlpha)],
+					g_blendTable[static_cast<unsigned>(m_blendState.dstAlpha)],
+					g_blendOpTable[static_cast<unsigned>(m_blendState.op)],
+
+					D3D11_COLOR_WRITE_ENABLE_ALL,
+				};
+
+				for (UINT i = 0; i < D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
+					blendDesc.RenderTarget[i] = renderTargetBlendDesc;
+
+				result = device->CreateBlendState(&blendDesc, blendState.GetAddressOf());
+				assert(SUCCEEDED(result));
+
+				s_blendStatesCache.emplace_back(m_blendState, blendState);
+			}
+			else
+			{
+				blendState = blendStateIt->second;
+			}
+
+			context->OMSetBlendState(blendState.Get(), nullptr, 0xFFFFFFFF);
+		}
+
+		// bind depth stencil state
+		{
+			auto depthStencilStateIt = std::find_if(s_depthStencilStatesCache.begin(), s_depthStencilStatesCache.end(), [this](auto&& val)
+			{
+				return val.first == m_depthStencilState;
+			});
+
+			Microsoft::WRL::ComPtr<ID3D11DepthStencilState> depthStencilState;
+			if (depthStencilStateIt == s_depthStencilStatesCache.end())
+			{
+				D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
+
+				// Initialize the description of the stencil state.
+				ZeroMemory(&depthStencilDesc, sizeof(depthStencilDesc));
+
+				// Set up the description of the stencil state.
+				depthStencilDesc.DepthEnable = m_depthStencilState.depthTest;
+				depthStencilDesc.DepthWriteMask = m_depthStencilState.depthWrite ? D3D11_DEPTH_WRITE_MASK_ALL : D3D11_DEPTH_WRITE_MASK_ZERO;
+				depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS;
+
+				depthStencilDesc.StencilEnable = m_depthStencilState.stencilTest;
+				depthStencilDesc.StencilReadMask = m_depthStencilState.stencilReadMask;
+				depthStencilDesc.StencilWriteMask = m_depthStencilState.stencilWriteMask;
+
+				// Stencil operations if pixel is front-facing.
+				depthStencilDesc.FrontFace.StencilFailOp = g_stencilOpTable[static_cast<unsigned>(m_depthStencilState.frontFaceStencilFailOp)];
+				depthStencilDesc.FrontFace.StencilDepthFailOp = g_stencilOpTable[static_cast<unsigned>(m_depthStencilState.frontFaceStencilDepthFailOp)];
+				depthStencilDesc.FrontFace.StencilPassOp = g_stencilOpTable[static_cast<unsigned>(m_depthStencilState.frontFaceStencilPassOp)];
+
+				depthStencilDesc.FrontFace.StencilFunc = g_comparsionFuncTable[static_cast<unsigned>(m_depthStencilState.frontFaceStencilFunc)];
+
+				// Stencil operations if pixel is back-facing.
+				depthStencilDesc.BackFace.StencilFailOp = g_stencilOpTable[static_cast<unsigned>(m_depthStencilState.backFaceStencilFailOp)];
+				depthStencilDesc.BackFace.StencilDepthFailOp = g_stencilOpTable[static_cast<unsigned>(m_depthStencilState.backFaceStencilDepthFailOp)];
+				depthStencilDesc.BackFace.StencilPassOp = g_stencilOpTable[static_cast<unsigned>(m_depthStencilState.backFaceStencilPassOp)];
+
+				depthStencilDesc.BackFace.StencilFunc = g_comparsionFuncTable[static_cast<unsigned>(m_depthStencilState.backFaceStencilFunc)];
+
+				// Create the depth stencil state.
+				result = device->CreateDepthStencilState(&depthStencilDesc, depthStencilState.GetAddressOf());
+				assert(SUCCEEDED(result));
+
+				s_depthStencilStatesCache.emplace_back(m_depthStencilState, depthStencilState);
+			}
+			else
+			{
+				depthStencilState = depthStencilStateIt->second;
+			}
+
+			context->OMSetDepthStencilState(depthStencilState.Get(), m_depthStencilState.stencilRef);
 		}
 	}
 }
