@@ -295,21 +295,6 @@ void InitD3D(HWND hWnd)
 	result = dev->CreateDepthStencilView(m_depthStencilBuffer, &depthStencilViewDesc, &pDepthStencilView);
 	assert(SUCCEEDED(result));
 
-	// Set the viewport
-	{
-		D3D11_VIEWPORT viewport;
-		ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
-
-		viewport.TopLeftX = 0;
-		viewport.TopLeftY = 0;
-		viewport.Width = WIDTH;
-		viewport.Height = HEIGHT;
-		viewport.MinDepth = 0.0f;
-		viewport.MaxDepth = 1.0f;
-
-		devcon->RSSetViewports(1, &viewport);
-	}
-
 	//// set scissor rect
 	//{
 	//	D3D11_RECT scissorRect;
