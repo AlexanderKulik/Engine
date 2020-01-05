@@ -9,6 +9,8 @@ RenderTarget::RenderTarget(ID3D11Device* dev, unsigned width, unsigned height, c
 {
 	if (!rtFormat.empty())
 	{
+		Microsoft::WRL::ComPtr<ID3D11Texture2D> colorBuffer;
+
 		// create color buffer
 		{
 			D3D11_TEXTURE2D_DESC colorBufferDesc;
@@ -26,7 +28,7 @@ RenderTarget::RenderTarget(ID3D11Device* dev, unsigned width, unsigned height, c
 			colorBufferDesc.CPUAccessFlags = 0;
 			colorBufferDesc.MiscFlags = 0;
 
-			auto&& result = dev->CreateTexture2D(&colorBufferDesc, NULL, m_colorBuffer.GetAddressOf());
+			auto&& result = dev->CreateTexture2D(&colorBufferDesc, NULL, colorBuffer.GetAddressOf());
 			assert(SUCCEEDED(result));
 		}
 
@@ -39,7 +41,7 @@ RenderTarget::RenderTarget(ID3D11Device* dev, unsigned width, unsigned height, c
 			renderTargetViewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
 			renderTargetViewDesc.Texture2D.MipSlice = 0;
 
-			auto&& result = dev->CreateRenderTargetView(m_colorBuffer.Get(), &renderTargetViewDesc, m_renderTargetView.GetAddressOf());
+			auto&& result = dev->CreateRenderTargetView(colorBuffer.Get(), &renderTargetViewDesc, m_renderTargetView.GetAddressOf());
 			assert(SUCCEEDED(result));
 		}
 
@@ -54,7 +56,7 @@ RenderTarget::RenderTarget(ID3D11Device* dev, unsigned width, unsigned height, c
 			shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
 
 			Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shaderResourceView;
-			auto&& result = dev->CreateShaderResourceView(m_colorBuffer.Get(), &shaderResourceViewDesc, shaderResourceView.GetAddressOf());
+			auto&& result = dev->CreateShaderResourceView(colorBuffer.Get(), &shaderResourceViewDesc, shaderResourceView.GetAddressOf());
 			assert(SUCCEEDED(result));
 
 			m_colorTexture = std::make_unique<Texture>(dev, shaderResourceView);
@@ -63,6 +65,8 @@ RenderTarget::RenderTarget(ID3D11Device* dev, unsigned width, unsigned height, c
 
 	if (!dsFormat.empty())
 	{
+		Microsoft::WRL::ComPtr<ID3D11Texture2D>	depthBuffer;
+
 		// create depth buffer
 		{
 			D3D11_TEXTURE2D_DESC depthBufferDesc;
@@ -83,7 +87,7 @@ RenderTarget::RenderTarget(ID3D11Device* dev, unsigned width, unsigned height, c
 			depthBufferDesc.MiscFlags = 0;
 
 			// Create the texture for the depth buffer using the filled out description.
-			auto&& result = dev->CreateTexture2D(&depthBufferDesc, NULL, &m_depthBuffer);
+			auto&& result = dev->CreateTexture2D(&depthBufferDesc, NULL, depthBuffer.GetAddressOf());
 			assert(SUCCEEDED(result));
 		}
 
@@ -96,7 +100,7 @@ RenderTarget::RenderTarget(ID3D11Device* dev, unsigned width, unsigned height, c
 			depthStencilViewDesc.ViewDimension = D3D11_DSV_DIMENSION::D3D11_DSV_DIMENSION_TEXTURE2D;
 			depthStencilViewDesc.Texture2D.MipSlice = 0;
 
-			auto&& result = dev->CreateDepthStencilView(m_depthBuffer.Get(), &depthStencilViewDesc, m_depthStencilView.GetAddressOf());
+			auto&& result = dev->CreateDepthStencilView(depthBuffer.Get(), &depthStencilViewDesc, m_depthStencilView.GetAddressOf());
 			assert(SUCCEEDED(result));
 		}
 
@@ -111,13 +115,13 @@ RenderTarget::RenderTarget(ID3D11Device* dev, unsigned width, unsigned height, c
 			shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
 
 			Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shaderResourceView;
-			auto&& result = dev->CreateShaderResourceView(m_depthBuffer.Get(), &shaderResourceViewDesc, shaderResourceView.GetAddressOf());
+			auto&& result = dev->CreateShaderResourceView(depthBuffer.Get(), &shaderResourceViewDesc, shaderResourceView.GetAddressOf());
 			assert(SUCCEEDED(result));
 
 			m_depthTexture = std::make_unique<Texture>(dev, shaderResourceView);
 			m_depthTexture->SetTextureFilter(TextureFilter::POINT);
 		}
-	}	
+	}
 }
 
 void RenderTarget::Bind(ID3D11DeviceContext* devcon)

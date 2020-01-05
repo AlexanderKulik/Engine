@@ -23,7 +23,6 @@ struct PixelInputType
     float3 normal : NORMAL;
 	float2 uv : TEXCOORD;
 	float fogFactor : FOGFACTOR;
-    float NdotL : DIFFUSE;
 };
 
 PixelInputType VShader(VertexInputType input)
@@ -38,7 +37,6 @@ PixelInputType VShader(VertexInputType input)
 	output.normal = normalWS.xyz;
 	output.uv = input.uv;
 	output.fogFactor = saturate( (positionVS.z - fogParams.x)/(fogParams.y - fogParams.x) );
-    output.NdotL = saturate(dot(normalWS.xyz, lightDir));
 	
     return output;
 }
@@ -54,12 +52,15 @@ float4 PShader(PixelInputType input) : SV_TARGET
 {
 	float3 output;
 	
+	float3 normal = normalize(input.normal);
+	float NdotL = saturate( dot(normal, lightDir) );
+
 	float shadow = 1.0;
 	float4 shadowMapCoords = input.shadowMapSpace / input.shadowMapSpace.w;
 	
 	if (shadowMapCoords.x > -1 && shadowMapCoords.x < 1 && shadowMapCoords.y > -1 && shadowMapCoords.y < 1)
 	{
-		float shadowMapDepth = shadowMapSampler.Sample(shadowMapSamplerState, shadowMapCoords.xy * float2(0.5, -0.5) + float2(0.5, 0.5));
+		float shadowMapDepth = shadowMapSampler.Sample(shadowMapSamplerState, shadowMapCoords.xy * float2(0.5, -0.5) + float2(0.5, 0.5)).r;
 		if (shadowMapDepth + 0.005 < shadowMapCoords.z)
 		{
 			shadow = 0.0;
@@ -68,9 +69,15 @@ float4 PShader(PixelInputType input) : SV_TARGET
 
 	float4 textureColor = float4(1, 1, 1, 1); // shaderTexture.Sample(SampleType, input.uv);
 
-	output.rgb = textureColor * (input.NdotL * shadow * 0.8 + 0.2);
+	float ambientFactor = pow(0.2, 2.2);
+
+	output.rgb = textureColor.rgb * (NdotL * shadow * (1 - ambientFactor) + ambientFactor);
 
 	output.rgb = lerp(output.rgb, fogColor.rgb, input.fogFactor * fogColor.a);
+
+	output.rgb = pow(output.rgb, 1 / 2.2);
+
+	output.rgb = (normal * 0.5 + 0.5);
 
 	return float4(output, 1);
 }

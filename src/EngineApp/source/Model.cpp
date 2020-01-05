@@ -38,6 +38,8 @@ Model::Model(ID3D11Device* dev, const std::string& path)
 	objl::Loader loader;
 
 	bool loadout = loader.LoadFile(path);
+	assert(loadout && "Can't load model");
+
 	if (loadout)
 	{
 		AABB modelAABB;

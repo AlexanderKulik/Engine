@@ -3,8 +3,6 @@
 // inclu//de the basic windows header files and the Direct3D header files
 #include <windows.h>
 #include <windowsx.h>
-#include <d3d11.h>
-#include <DirectXMath.h>
 #include <cassert>
 #include <fstream>
 #include <sstream>
@@ -34,15 +32,23 @@ using DirectX::SimpleMath::Vector4;
 using DirectX::SimpleMath::Quaternion;
 using DirectX::SimpleMath::Matrix;
 
+const unsigned msaaSamples = 4;
 const unsigned WIDTH = 800;
 const unsigned HEIGHT = 600;
+
+namespace debug
+{
+	bool g_drawSubmeshesBoundingBox = false;
+	bool g_drawShadowmapCameraFrustum = false;
+	bool g_drawGrid = true;
+	bool g_animateModel = false;
+}
 
 // global declarations
 IDXGISwapChain *swapchain;             // the pointer to the swap chain interface
 ID3D11Device *dev;                     // the pointer to our Direct3D device interface
 ID3D11DeviceContext *devcon;           // the pointer to our Direct3D device context
 ID3D11RenderTargetView *backbuffer;    // the pointer to our back buffer
-ID3D11Texture2D* m_depthStencilBuffer;
 ID3D11DepthStencilView *pDepthStencilView;
 
 Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_rasterState;
@@ -86,13 +92,13 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	//	AllocConsole();
 	//
 	//	HANDLE handle_out = GetStdHandle(STD_OUTPUT_HANDLE);
-	//	int hCrt = _open_osfhandle((long)handle_out, _O_TEXT);
+	//	int hCrt = _open_osfhandle(reinterpret_cast<intptr_t>(handle_out), _O_TEXT);
 	//	FILE* hf_out = _fdopen(hCrt, "w");
 	//	setvbuf(hf_out, NULL, _IONBF, 1);
 	//	*stdout = *hf_out;
 	//
 	//	HANDLE handle_in = GetStdHandle(STD_INPUT_HANDLE);
-	//	hCrt = _open_osfhandle((long)handle_in, _O_TEXT);
+	//	hCrt = _open_osfhandle(reinterpret_cast<intptr_t>(handle_in), _O_TEXT);
 	//	FILE* hf_in = _fdopen(hCrt, "r");
 	//	setvbuf(hf_in, NULL, _IONBF, 128);
 	//	*stdin = *hf_in;
@@ -121,7 +127,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		L"Our First Direct3D Program",
 		WS_OVERLAPPEDWINDOW,
 		300,
-		300,
+		50,
 		wr.right - wr.left,
 		wr.bottom - wr.top,
 		NULL,
@@ -232,12 +238,12 @@ void InitD3D(HWND hWnd)
 	scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;     // use 32-bit color
 	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;      // how swap chain is to be used
 	scd.OutputWindow = hWnd;                                // the window to be used
-	scd.SampleDesc.Count = 1;                               // how many multisamples
+	scd.SampleDesc.Count = msaaSamples;                     // how many multisamples
 	scd.SampleDesc.Quality = 0;                             // multisample quality level
 	scd.Windowed = TRUE;                                    // windowed/full-screen mode
 
-															// create a device, device context and swap chain using the information in the scd struct
-	D3D11CreateDeviceAndSwapChain(NULL,
+	// create a device, device context and swap chain using the information in the scd struct
+	result = D3D11CreateDeviceAndSwapChain(NULL,
 		D3D_DRIVER_TYPE_HARDWARE,
 		NULL,
 		D3D11_CREATE_DEVICE_DEBUG,
@@ -249,14 +255,16 @@ void InitD3D(HWND hWnd)
 		&dev,
 		NULL,
 		&devcon);
-
+	assert(SUCCEEDED(result));
 
 	// get the address of the back buffer
 	ID3D11Texture2D *pBackBuffer;
-	swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
+	result = swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
+	assert(SUCCEEDED(result));
 
 	// use the back buffer address to create the render target
-	dev->CreateRenderTargetView(pBackBuffer, NULL, &backbuffer);
+	result = dev->CreateRenderTargetView(pBackBuffer, NULL, &backbuffer);
+	assert(SUCCEEDED(result));
 	pBackBuffer->Release();
 
 	///// Depth
@@ -271,7 +279,7 @@ void InitD3D(HWND hWnd)
 	depthBufferDesc.MipLevels = 1;
 	depthBufferDesc.ArraySize = 1;
 	depthBufferDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	depthBufferDesc.SampleDesc.Count = 1;
+	depthBufferDesc.SampleDesc.Count = msaaSamples;
 	depthBufferDesc.SampleDesc.Quality = 0;
 	depthBufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	depthBufferDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
@@ -279,7 +287,8 @@ void InitD3D(HWND hWnd)
 	depthBufferDesc.MiscFlags = 0;
 
 	// Create the texture for the depth buffer using the filled out description.
-	result = dev->CreateTexture2D(&depthBufferDesc, NULL, &m_depthStencilBuffer);
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> depthStencilBuffer;
+	result = dev->CreateTexture2D(&depthBufferDesc, NULL, depthStencilBuffer.GetAddressOf());
 	assert(SUCCEEDED(result));
 
 	D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc;
@@ -288,12 +297,14 @@ void InitD3D(HWND hWnd)
 
 	// Set up the depth stencil view description.
 	depthStencilViewDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	depthStencilViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	depthStencilViewDesc.ViewDimension = msaaSamples > 1 ? D3D11_DSV_DIMENSION_TEXTURE2DMS : D3D11_DSV_DIMENSION_TEXTURE2D;
 	depthStencilViewDesc.Texture2D.MipSlice = 0;
 
 	// Create the depth stencil view.
-	result = dev->CreateDepthStencilView(m_depthStencilBuffer, &depthStencilViewDesc, &pDepthStencilView);
+	result = dev->CreateDepthStencilView(depthStencilBuffer.Get(), &depthStencilViewDesc, &pDepthStencilView);
 	assert(SUCCEEDED(result));
+
+	depthStencilBuffer = nullptr;
 
 	//// set scissor rect
 	//{
@@ -317,7 +328,7 @@ void InitD3D(HWND hWnd)
 		//rasterizerState.DepthClipEnable = true;
 		//rasterizerState.ScissorEnable = true;
 		//rasterizerState.MultisampleEnable = false;
-		//rasterizerState.AntialiasedLineEnable = false;
+		rasterizerState.AntialiasedLineEnable = msaaSamples > 1;
 		//rasterizerState.ForcedSampleCount = 0;
 		result = dev->CreateRasterizerState(&rasterizerState, m_rasterState.GetAddressOf());
 		assert(SUCCEEDED(result));
@@ -341,16 +352,6 @@ void InitD3D(HWND hWnd)
 		rotMatrix = rotMatrix.Transpose();
 		const auto quat = Quaternion::CreateFromRotationMatrix(rotMatrix);
 		g_lightCamera->SetRotation(quat);
-
-		//g_camera = std::make_unique<Camera>(Camera::Orthographic{ 200.0f }, g_lightCamera->GetAspectRatio(), 0.5f, 500.0f);
-		//g_camera->SetPosition(g_lightCamera->GetPosition());
-		//g_camera->SetRotation(g_lightCamera->GetRotation());
-		//
-		//auto&& view = g_lightCamera->GetViewTransform();
-		//auto zeroVS = Vector3::Transform(Vector3::Zero, view);
-		//int a = 45;
-		//g_lightCamera->SetRotation({ 0.115494534f, -0.882180750f, 0.286937863f, 0.355084032f });
-		//g_lightCamera->SetRotation(DirectX::XMQuaternionRotationMatrix(DirectX::XMMatrixLookAtLH(g_lightCamera->GetPosition(), DirectX::XMVectorZero(), DirectX::XMVectorSet(0, 1, 0, 0))));
 	}
 
 	g_shader = std::make_unique<Shader>(dev, L"shaders/basic.hlsl");
@@ -363,7 +364,7 @@ void InitD3D(HWND hWnd)
 	g_model = std::make_unique<Model>(dev, "models/Snow covered CottageOBJ.obj");
 	//g_model = std::make_unique<Model>(dev, "models/orb.obj");
 	//g_model = std::make_unique<Model>(dev, "models/cube.obj");
-
+	
 	g_shadowMap = std::make_unique<RenderTarget>(dev, 1024, 1024, std::string(), "D24S8");
 
 	g_debugDrawer = std::make_unique<DirectX::PrimitiveBatch<Vertex3D>>(devcon);
@@ -382,7 +383,7 @@ void InitD3D(HWND hWnd)
 	basicMaterial.SetTexture("shadowMapSampler", g_shadowMap->GetDepthTexture());
 
 	primitiveMaterial.SetBlendState({ true, BlendFactor::SRC_ALPHA, BlendFactor::INV_SRC_ALPHA, BlendOp::ADD });
-	primitiveMaterial.SetDepthTest(false);
+	primitiveMaterial.SetDepthTest(true);
 	primitiveMaterial.SetDepthWrite(false);
 
 	{
@@ -430,7 +431,38 @@ void InitD3D(HWND hWnd)
 		g_lightCamera->SetPosition(cameraPos);
 
 		basicMaterial.SetUniform("shadowMapMatrix", g_lightCamera->GetViewProjectionTransform().Transpose());
+
+		//g_camera = std::make_unique<Camera>(Camera::Orthographic{ extents.y }, g_lightCamera->GetAspectRatio(), 0.0f, extents.z);
+		//g_camera->SetPosition(g_lightCamera->GetPosition());
+		//g_camera->SetRotation(g_lightCamera->GetRotation());
 	}
+
+#ifdef _DEBUG
+	Microsoft::WRL::ComPtr<ID3D11Debug> d3dDebug;
+	result = dev->QueryInterface(d3dDebug.GetAddressOf());
+
+	if (SUCCEEDED(result))
+	{
+		Microsoft::WRL::ComPtr<ID3D11InfoQueue> d3dInfoQueue;
+		result = d3dDebug.As(&d3dInfoQueue);
+
+		if (SUCCEEDED(result))
+		{
+			D3D11_MESSAGE_ID hide[] =
+			{
+				D3D11_MESSAGE_ID_DEVICE_DRAW_RENDERTARGETVIEW_NOT_SET
+			};
+
+			D3D11_INFO_QUEUE_FILTER filter;
+			ZeroMemory(&filter, sizeof(filter));
+
+			filter.DenyList.NumIDs = _countof(hide);
+			filter.DenyList.pIDList = hide;
+
+			d3dInfoQueue->AddStorageFilterEntries(&filter);
+		}
+	}
+#endif
 }
 
 
@@ -440,6 +472,23 @@ void UpdateFrame()
 	if (kb.Escape)
 	{
 		PostQuitMessage(0);
+	}
+
+	if (kb.LeftControl && kb.D1)
+	{
+		debug::g_drawGrid = !debug::g_drawGrid;
+	}
+	if (kb.LeftControl && kb.D2)
+	{
+		debug::g_drawSubmeshesBoundingBox = !debug::g_drawSubmeshesBoundingBox;
+	}
+	if (kb.LeftControl && kb.D3)
+	{
+		debug::g_drawShadowmapCameraFrustum = !debug::g_drawShadowmapCameraFrustum;
+	}
+	if (kb.LeftControl && kb.D4)
+	{
+		debug::g_animateModel = !debug::g_animateModel;
 	}
 
 	const float ROTATION_GAIN = 0.01f;
@@ -571,30 +620,31 @@ void UpdateFrame()
 	const float k_frameTime = 60.0f / 1000.0f; //sec
 
 	// apply some animations to model
+	if (debug::g_animateModel)
 	{
-		//g_model->SetRotation(g_model->GetRotation() * Quaternion::CreateFromAxisAngle(Vector3::Up, k_frameTime * 0.1f));
+		g_model->SetRotation(g_model->GetRotation() * Quaternion::CreateFromAxisAngle(Vector3::Up, k_frameTime * 0.1f));
 
-		//auto newScale = g_model->GetScale();
-		//
-		//static bool inc = true;
-		//if (inc)
-		//{
-		//	newScale += Vector3{ 0.1f } * k_frameTime;
-		//	if (newScale.x >= 2.0f)
-		//	{
-		//		inc = false;
-		//	}
-		//}
-		//else
-		//{
-		//	newScale -= Vector3{ 0.1f } * k_frameTime;
-		//	if (newScale.x <= 1.0f)
-		//	{
-		//		inc = true;
-		//	}
-		//}
-		//
-		//g_model->SetScale(newScale);
+		auto newScale = g_model->GetScale();
+		
+		static bool inc = true;
+		if (inc)
+		{
+			newScale += Vector3{ 0.1f } * k_frameTime;
+			if (newScale.x >= 2.0f)
+			{
+				inc = false;
+			}
+		}
+		else
+		{
+			newScale -= Vector3{ 0.1f } * k_frameTime;
+			if (newScale.x <= 1.0f)
+			{
+				inc = true;
+			}
+		}
+		
+		g_model->SetScale(newScale);
 	}
 
 	g_model->UpdateBoundingVolumes();
@@ -666,6 +716,7 @@ void RenderFrame(void)
 	g_debugDrawer->Begin();
 
 	// render grid
+	if (debug::g_drawGrid)
 	{
 		const float k_gridSize = 1000.0f;
 		const float k_cellSize = 50;
@@ -709,6 +760,7 @@ void RenderFrame(void)
 	}
 
 	// render bounding boxes
+	if (debug::g_drawSubmeshesBoundingBox)
 	{
 		const auto meshCount = g_model->GetMeshCount();
 		for (auto i = 0; i < meshCount; i++)
@@ -748,34 +800,38 @@ void RenderFrame(void)
 	}
 
 	// render shadow map frustum
-	//{
-	//	const Vector4 clr = { 1, 0, 1, 1.0f };
-	//	auto frustumPoints = g_lightCamera->GetFrustum().GetFrumstumPoints();
-	//
-	//	Vertex3D vtx0{ frustumPoints[0],clr };
-	//	Vertex3D vtx1{ frustumPoints[1],clr };
-	//	Vertex3D vtx2{ frustumPoints[2],clr };
-	//	Vertex3D vtx3{ frustumPoints[3],clr };
-	//	Vertex3D vtx4{ frustumPoints[4],clr };
-	//	Vertex3D vtx5{ frustumPoints[5],clr };
-	//	Vertex3D vtx6{ frustumPoints[6],clr };
-	//	Vertex3D vtx7{ frustumPoints[7],clr };
-	//
-	//	g_debugDrawer->DrawLine(vtx0, vtx1);
-	//	g_debugDrawer->DrawLine(vtx1, vtx2);
-	//	g_debugDrawer->DrawLine(vtx2, vtx3);
-	//	g_debugDrawer->DrawLine(vtx3, vtx0);
-	//
-	//	g_debugDrawer->DrawLine(vtx4, vtx5);
-	//	g_debugDrawer->DrawLine(vtx5, vtx6);
-	//	g_debugDrawer->DrawLine(vtx6, vtx7);
-	//	g_debugDrawer->DrawLine(vtx7, vtx4);
-	//
-	//	g_debugDrawer->DrawLine(vtx0, vtx4);
-	//	g_debugDrawer->DrawLine(vtx1, vtx5);
-	//	g_debugDrawer->DrawLine(vtx2, vtx6);
-	//	g_debugDrawer->DrawLine(vtx3, vtx7);
-	//}
+	if (debug::g_drawShadowmapCameraFrustum)
+	{
+		const Vector4 clr = { 1, 0, 1, 1.0f };
+		auto frustumPoints = g_lightCamera->GetFrustum().GetFrumstumPoints();
+	
+		Vertex3D vtx0{ frustumPoints[0],clr };
+		Vertex3D vtx1{ frustumPoints[1],clr };
+		Vertex3D vtx2{ frustumPoints[2],clr };
+		Vertex3D vtx3{ frustumPoints[3],clr };
+		Vertex3D vtx4{ frustumPoints[4],clr };
+		Vertex3D vtx5{ frustumPoints[5],clr };
+		Vertex3D vtx6{ frustumPoints[6],clr };
+		Vertex3D vtx7{ frustumPoints[7],clr };
+	
+		g_debugDrawer->DrawLine(vtx0, vtx1);
+		g_debugDrawer->DrawLine(vtx1, vtx2);
+		g_debugDrawer->DrawLine(vtx2, vtx3);
+		g_debugDrawer->DrawLine(vtx3, vtx0);
+	
+		g_debugDrawer->DrawLine(vtx4, vtx5);
+		g_debugDrawer->DrawLine(vtx5, vtx6);
+		g_debugDrawer->DrawLine(vtx6, vtx7);
+		g_debugDrawer->DrawLine(vtx7, vtx4);
+	
+		g_debugDrawer->DrawLine(vtx0, vtx4);
+		g_debugDrawer->DrawLine(vtx1, vtx5);
+		g_debugDrawer->DrawLine(vtx2, vtx6);
+		g_debugDrawer->DrawLine(vtx3, vtx7);
+
+		g_debugDrawer->DrawLine(vtx0, vtx2);
+		g_debugDrawer->DrawLine(vtx1, vtx3);
+	}
 
 	g_debugDrawer->End();
 
@@ -809,7 +865,6 @@ void CleanD3D(void)
 	// close and release all existing COM objects
 	swapchain->Release();
 	backbuffer->Release();
-	m_depthStencilBuffer->Release();
 	pDepthStencilView->Release();
 	dev->Release();
 	devcon->Release();
